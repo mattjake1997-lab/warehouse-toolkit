@@ -117,7 +117,7 @@ function readExcelEAB(file) {
           if (raw.length < 2) continue
 
           let headerRowIdx = -1
-          const scanLimit = Math.min(raw.length, 8)
+          const scanLimit = Math.min(raw.length, 25)   // title blocks vary in height
           for (let i = 0; i < scanLimit; i++) {
             const row = raw[i]
             if (row.some(cell => String(cell ?? '').trim().toLowerCase().includes('pallets per space'))) {
@@ -142,7 +142,7 @@ function readExcelEAB(file) {
             ? `none of its ${diag.sheets} sheets looked like a part sheet${diag.index ? '' : ' and there is no "Index of Part No.s" sheet'}`
             : !diag.tracked
               ? `none of its ${diag.partSheets} part sheets are on the tracked EAB parts list${TARGET_EAB_PARTS.size ? '' : ' (the list is empty: import the company settings file)'}`
-              : `the ${diag.tracked} tracked part sheets have no "Pallets per Space" header in their first 8 rows`
+              : `the ${diag.tracked} tracked part sheets have no "Pallets per Space" header in their first 25 rows`
           const err = new Error(`Read the EAB workbook, but ${why}.`)
           err.userMessage = err.message
           return reject(err)
@@ -232,7 +232,7 @@ function parseEAB(rows) {
     if (qty <= 0) continue // skips filler/leftover blank rows with no real pallet data
 
     // Only count pallets still in storage (Date Shipped is empty)
-    if (dateShipped) continue
+    if (dateShipped !== null && String(dateShipped).trim() !== '') continue   // a blank-looking cell (spaces) isn't a ship date
 
     result.push({
       partNumber,
