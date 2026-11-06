@@ -88,7 +88,6 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(
     }
     Object.entries(frames).forEach(([k,f])=>f.hidden=k!==name);
     if(location.hash.slice(1)!==name) try{history.replaceState(null,"","#"+name)}catch(e){location.hash=name}
-    try{localStorage.setItem("toolkit.tab",name)}catch(e){}
   }
   tabs.forEach(b=>b.addEventListener("click",()=>show(b.dataset.tab)));
   document.querySelector("nav").addEventListener("keydown",e=>{
@@ -160,7 +159,7 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(
     if(st.brand&&st.brand.title)$("brandName").textContent=st.brand.title;
     if(st.brand&&st.brand.logo){const img=document.createElement("img");img.src=st.brand.logo;img.alt="";$("brand").replaceChild(img,$("brand").querySelector("i"))}
     if(!st.app)$("setHelp").textContent="No company settings imported yet, so sites, addresses, carriers, names and part weights are blank. Import the settings file once.";
-    let start=location.hash.slice(1); if(!start) try{start=localStorage.getItem("toolkit.tab")||""}catch(e){}
+    let start=location.hash.slice(1);   // a link to a specific tab (#dock-to-stock) opens it; otherwise Pallet Audit
     show(start||"pallet-audit");
   });
 })();
