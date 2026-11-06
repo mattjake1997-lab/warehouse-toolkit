@@ -61,13 +61,26 @@ try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t
   window.toolkitPdfFromElement=async function(el,filename){
     if(!el||!window.html2canvas||!window.jspdf){ window.toolkitToast("The PDF maker didn't load. Reload the page and try again"); return; }
     window.toolkitToast("Making the PDF…");
-    var canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true});
-    var pdf=new window.jspdf.jsPDF({unit:"pt",format:"letter"}), W=612, H=792, m=24, w=W-2*m, pageH=(H-2*m)*canvas.width/w, y=0, first=true;
-    while(y<canvas.height){
-      var h=Math.min(pageH,canvas.height-y), part=document.createElement("canvas"); part.width=canvas.width; part.height=h;
-      part.getContext("2d").drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+    // Lay the report out at one fixed width, so nothing on the right is cut off on a narrow window.
+    var keep={w:el.style.width,mw:el.style.maxWidth,box:el.style.boxSizing}, PX=816;   // letter width at 96 dpi
+    el.style.width=PX+"px"; el.style.maxWidth="none"; el.style.boxSizing="border-box";
+    // Page breaks go between rows and sections, never through the middle of a line of text.
+    var top=el.getBoundingClientRect().top, cuts=[];
+    el.querySelectorAll("tr,h1,h2,h3,h4,p,li,section,table,div").forEach(function(n){ var r=n.getBoundingClientRect(); if(r.height>0&&r.height<400) cuts.push(r.bottom-top); });
+    var cssH=el.scrollHeight, canvas;
+    try{ canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,width:PX,windowWidth:Math.max(PX+64,document.documentElement.clientWidth)}); }
+    finally{ el.style.width=keep.w; el.style.maxWidth=keep.mw; el.style.boxSizing=keep.box; }
+    var k=canvas.height/cssH;   // canvas pixels per CSS pixel
+    cuts=cuts.map(function(c){return Math.round(c*k)}).filter(function(c){return c>0&&c<canvas.height}).sort(function(a,b){return a-b});
+    var pdf=new window.jspdf.jsPDF({unit:"pt",format:"letter"}), W=612, H=792, m=24, w=W-2*m, pageH=Math.floor((H-2*m)*canvas.width/w), y=0, first=true;
+    while(y<canvas.height-2){
+      var end=Math.min(y+pageH,canvas.height);
+      if(end<canvas.height){ var best=0; for(var i=0;i<cuts.length;i++){ if(cuts[i]>y+pageH*0.5&&cuts[i]<=end) best=cuts[i]; } if(best) end=best; }
+      var h=end-y, part=document.createElement("canvas"); part.width=canvas.width; part.height=h;
+      var ctx=part.getContext("2d"); ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,part.width,h);
+      ctx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
       if(!first) pdf.addPage(); first=false;
-      pdf.addImage(part.toDataURL("image/jpeg",0.92),"JPEG",m,m,w,h*w/canvas.width); y+=h;
+      pdf.addImage(part.toDataURL("image/jpeg",0.92),"JPEG",m,m,w,h*w/canvas.width); y=end;
     }
     try{ var dl=await window.toolkitUse("downloads"); if(!dl){window.toolkitToast("Saving files isn't available in this view");return}
       await dl.save({filename:filename,data:pdf.output("blob")}); window.toolkitToast("Saved "+filename); }
