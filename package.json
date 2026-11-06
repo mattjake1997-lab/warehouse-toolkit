@@ -1,0 +1,16 @@
+{
+  "name": "warehouse-toolkit",
+  "private": true,
+  "description": "Browser tools for a receiving dock. Only needed to rebuild recon-app.js and truck-app.js.",
+  "scripts": {
+    "build": "npm run build:recon && npm run build:truck",
+    "build:recon": "cd src && esbuild recon-main.jsx --bundle --minify --outfile=../recon-app.js --jsx=automatic --loader:.js=jsx --define:process.env.NODE_ENV='\"production\"' --alias:xlsx=./shims/xlsx.js --alias:pdfjs-dist=./shims/pdfjs.js --alias:file-saver=./shims/file-saver.js",
+    "build:truck": "cd src && esbuild truck-main.jsx --bundle --minify --outfile=../truck-app.js --jsx=automatic --loader:.js=jsx --define:process.env.NODE_ENV='\"production\"' --alias:xlsx=./shims/xlsx.js --alias:pdfjs-dist=./shims/pdfjs.js --alias:file-saver=./shims/file-saver.js"
+  },
+  "devDependencies": {
+    "docx": "9.7.1",
+    "esbuild": "0.28.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

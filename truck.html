@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Truck Load Builder</title>
+<script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Mrs+Saint+Delafield&display=swap">
+<style>*,*:before,*:after{box-sizing:border-box;margin:0;padding:0}:root{--bg: #000000;--bg-card: #0a0d0a;--bg-card-hover: #101710;--bg-input: #0c0f0c;--border: #1a231a;--border-mid: #242f24;--border-focus: #00c800;--text-primary: #eef2ee;--text-secondary: #94a294;--text-muted: #566356;--accent: #00c800;--accent-light: #29e029;--green: #2d7a52;--green-light: #3dba78;--green-bg: #0a1f14;--red-light: #f06060;--red-bg: #1a0808;--amber-light: #e8b84b;--amber-bg: #1a1205;--font: "Inter", system-ui, sans-serif;--mono: "IBM Plex Mono", "Courier New", monospace;--radius: 8px;--radius-lg: 12px}body{font-family:var(--font);background:var(--bg);color:var(--text-primary);font-size:15px;line-height:1.6;min-height:100vh}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-mid);border-radius:3px}table{border-collapse:collapse;width:100%}th{text-align:left;font-weight:600}button{cursor:pointer;font-family:var(--font)}input,select{font-family:var(--font)}
+</style>
+<style>
+#tk-toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#eef2ee;color:#000;padding:10px 16px;border-radius:8px;font:14px Inter,system-ui,sans-serif;z-index:2000;max-width:calc(100% - 32px)}
+.tk-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:2001;padding:16px}
+.tk-box{background:#0a0d0a;border:1px solid #242f24;border-radius:12px;padding:22px;max-width:440px;width:100%;color:#eef2ee;font:15px/1.5 Inter,system-ui,sans-serif}
+.tk-box p{margin:0 0 18px}
+.tk-btns{display:flex;gap:10px;justify-content:flex-end}
+.tk-btns button{font:600 14px Inter,system-ui,sans-serif;border-radius:7px;padding:8px 14px;cursor:pointer;border:1px solid #242f24;background:#0c0f0c;color:#eef2ee}
+.tk-btns .tk-yes{background:#00c800;border-color:#00c800;color:#001a00}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+/* Page helpers for the app: a toast for messages (the browser's alert box doesn't show on this link),
+   an in-page yes/no box (confirm() always answers "no" here), and saving a part of the page as a PDF. */
+(function(){
+  var t=document.createElement("div"); t.id="tk-toast"; t.hidden=true; document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(t)});
+  window.toolkitToast=function(msg){ t.textContent=msg; t.hidden=false; clearTimeout(t._h); t._h=setTimeout(function(){t.hidden=true},4200); };
+  window.alert=function(msg){ window.toolkitToast(String(msg)); };
+  window.toolkitConfirm=function(msg){ return new Promise(function(res){
+    var w=document.createElement("div"); w.className="tk-modal";
+    w.innerHTML='<div class="tk-box" role="dialog" aria-modal="true"><p></p><div class="tk-btns"><button class="tk-no">Cancel</button><button class="tk-yes">Yes, go ahead</button></div></div>';
+    w.querySelector("p").textContent=msg; document.body.appendChild(w);
+    function done(v){ w.remove(); res(v); }
+    w.querySelector(".tk-no").onclick=function(){done(false)}; w.querySelector(".tk-yes").onclick=function(){done(true)};
+    w.addEventListener("keydown",function(e){ if(e.key==="Escape") done(false); }); w.querySelector(".tk-yes").focus();
+  }); };
+  window.toolkitPdfFromElement=async function(el,filename){
+    if(!el||!window.html2canvas||!window.jspdf){ window.toolkitToast("The PDF maker didn't load. Reload the page and try again"); return; }
+    window.toolkitToast("Making the PDF…");
+    var canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true});
+    var pdf=new window.jspdf.jsPDF({unit:"pt",format:"letter"}), W=612, H=792, m=24, w=W-2*m, pageH=(H-2*m)*canvas.width/w, y=0, first=true;
+    while(y<canvas.height){
+      var h=Math.min(pageH,canvas.height-y), part=document.createElement("canvas"); part.width=canvas.width; part.height=h;
+      part.getContext("2d").drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+      if(!first) pdf.addPage(); first=false;
+      pdf.addImage(part.toDataURL("image/jpeg",0.92),"JPEG",m,m,w,h*w/canvas.width); y+=h;
+    }
+    try{ var dl=await window.toolkitUse("downloads"); if(!dl){window.toolkitToast("Saving files isn't available in this view");return}
+      await dl.save({filename:filename,data:pdf.output("blob")}); window.toolkitToast("Saved "+filename); }
+    catch(e){ if(e&&e.code==="declined") return; window.toolkitToast("Couldn't save the PDF ("+((e&&(e.message||e.code))||"unknown")+")"); }
+  };
+})();
+</script>
+<!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+</head><body><div id="root"></div>
+<script src="truck-app.js"></script>
+</body></html>

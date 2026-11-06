@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en"><head><script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BOL Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: drop zone, then a row of trip counts per direction, a per-site breakdown, then the BOL list. */
+:root{
+  --bg:#eef0f2; --panel:#ffffff; --ink:#1b2128; --muted:#5d6874; --line:#d3d8de;
+  --accent:#f2c230; --accent-ink:#2a2200; --steel:#2f4a63; --out:#2f4a63; --back:#1f7a4d;
+  --warn:#9a6200; --warn-bg:#fbefd2; --bad:#b3261e; --bad-bg:#fbe3e1;
+  --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#13171c;--panel:#1b2128;--ink:#e7ebef;--muted:#9aa5b1;--line:#2d3640;--steel:#8fb3d4;--out:#8fb3d4;--back:#6fd19c;--warn:#f0c062;--warn-bg:#3a2d10;--bad:#ff8a80;--bad-bg:#3d1c1a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#13171c;--panel:#1b2128;--ink:#e7ebef;--muted:#9aa5b1;--line:#2d3640;--steel:#8fb3d4;--out:#8fb3d4;--back:#6fd19c;--warn:#f0c062;--warn-bg:#3a2d10;--bad:#ff8a80;--bad-bg:#3d1c1a;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 16px 48px;display:grid;gap:18px}
+h1{font-stretch:78%;font-weight:800;font-size:clamp(26px,4.5vw,36px);line-height:1.05;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:66ch}
+.drop{border:2px dashed var(--line);border-radius:10px;background:var(--panel);padding:22px 18px;display:grid;justify-items:center;gap:6px;text-align:center;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--steel)}
+.drop strong{font-stretch:85%;font-size:19px}.drop span{color:var(--muted);font-size:14px}
+.drop:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+.sum{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;table-layout:fixed}
+.sum th,.sum td{padding:12px 16px;text-align:right;border-top:1px solid var(--line)}
+.sum thead th{border-top:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;vertical-align:bottom}
+.sum thead th span{display:block;text-transform:none;letter-spacing:0;font-weight:500;font-size:12px}
+.sum th[scope="row"]{text-align:left;font-size:17px;font-weight:700;color:var(--ink)}
+.sum th[scope="row"] span{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
+.sum th:first-child{width:22%}
+.sum td.big{font:700 28px var(--mono);font-variant-numeric:tabular-nums}
+.sum td.go{color:var(--out)}.sum td.back{color:var(--back)}
+.sum td.pl{font:500 15px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.sum tfoot th,.sum tfoot td{border-top:2px solid var(--line)}
+.sumnote{margin:8px 2px 0;color:var(--muted);font-size:14px}.sumnote b{color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:2px}
+.stat .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.stat .v{font:600 26px var(--mono);font-variant-numeric:tabular-nums}
+.stat .s{font-size:12.5px;color:var(--muted)}
+.stat.out .v{color:var(--out)}.stat.back .v{color:var(--back)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.field{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.field label{font-weight:600}
+input,select{font:14px var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.btn{font:600 14px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:8px 13px;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px;table-layout:fixed}
+td{overflow-wrap:anywhere}
+td.n{white-space:nowrap;overflow-wrap:normal}
+td select,td input{width:100%;min-width:0}
+@media (max-width:760px){table{table-layout:auto;min-width:720px}}
+th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.dir{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.dir.out{color:var(--out);background:color-mix(in srgb,var(--out) 14%,transparent)}
+.dir.back{color:var(--back);background:color-mix(in srgb,var(--back) 14%,transparent)}
+.dir.other{color:var(--warn);background:var(--warn-bg)}
+.truck{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent);border-radius:4px;padding:1px 5px;margin-left:6px}
+.small{font-size:12.5px;color:var(--muted)}
+td input.pal{font-family:var(--mono)}
+td input.pal.miss{border-color:var(--warn);background:var(--warn-bg)}
+.btn.x{padding:5px 8px}
+.empty{padding:16px;color:var(--muted);font-size:14px}
+.sites{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.site{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px;display:grid;gap:4px}
+.site b{font-size:15px}
+.site .row{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px)}
+details.howto{border-top:1px solid var(--line);padding-top:18px;margin-top:12px}
+details.howto summary{cursor:pointer;font-weight:600;font-size:15px;color:var(--ink);list-style:none;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+details.howto summary::before{content:"▸";font-size:11px}
+details[open].howto summary::before{content:"▾"}
+details.howto ol{margin:14px 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:88ch;font-size:14.5px}
+details.howto .more{color:var(--muted);font-size:13.5px;display:flex;flex-direction:column;gap:6px;max-width:88ch}
+details.howto .more b{color:var(--ink)}
+</style><!--toolkit-theme--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"><style>/* Toolkit theme. The :not(#id) raises this above the page's own light and dark settings. */
+html:root:not(#toolkit-theme){--bg:#000000;--panel:#0a0d0a;--ink:#eef2ee;--muted:#94a294;--line:#1a231a;--accent:#00c800;--display:"Inter",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono","Courier New",monospace;color-scheme:dark;--accent-ink:#001a00;--steel:#29e029;--out:#29e029;--back:#3dba78;--warn:#e8b84b;--warn-bg:#1a1205;--bad:#f06060;--bad-bg:#1a0808;}
+body{background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-stretch:normal!important;letter-spacing:-.01em}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#242f24;border-radius:3px}::-webkit-scrollbar-track{background:transparent}</style><!--/toolkit-theme--><!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+</head><body>
+<div class="wrap">
+  <div>
+    <h1>BOL Tracker</h1>
+    <p class="sub">How many times shipments went from your main warehouse to each off-site warehouse, and how many came back, read from the bills of lading. How it works is at the bottom of the page.</p>
+  </div>
+
+  <label class="drop" id="drop" tabindex="0">
+    <strong>Drop BOLs here</strong>
+    <span>or click to choose · PDF, Word 97-2003 (.doc) or .docx · any number at once</span><span id="progress" class="small"></span>
+    <input id="picker" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
+  </label>
+
+  <div class="tally" id="tally"></div>
+
+  <div class="bar">
+    <div class="field">
+      <label for="truck">Other box truck names</label>
+      <input id="truck" list="carriers" placeholder="e.g. Company Truck, in-house">
+      <datalist id="carriers"></datalist>
+      <label class="small" style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="checkbox" id="blankTruck"> Blank carrier = box truck</label>
+      <span class="small">"Box Truck" always counts. Separate other names with commas.</span>
+      <span class="small" id="learnNote"></span>
+    </div>
+    <div class="field">
+      <button class="btn" id="clear">Clear</button>
+      <button class="btn primary" id="csv">Download PDF report</button>
+    </div>
+  </div>
+
+  <div class="tablewrap"><table>
+    <colgroup><col style="width:20%"><col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:12%"><col style="width:18%"><col style="width:9%"><col style="width:7%"></colgroup>
+    <thead><tr><th>BOL file</th><th>Date</th><th>Direction</th><th>Ship from</th><th>Ship to</th><th>Carrier</th><th>Pallets</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+
+  <details class="howto">
+    <summary>How to use this</summary>
+    <ol>
+      <li><b>Drop in the BOLs:</b> PDFs (printed or scanned) or Word files. A scan with many BOLs is split into one row per BOL.</li>
+      <li><b>Read the table at the top.</b> For each warehouse: how many times a shipment <b>went there</b> from your main warehouse, and how many times one <b>came back</b>, with the pallets each way.</li>
+      <li><b>Check the list.</b> A <i>Check</i> row couldn't be matched to a warehouse: pick Ship from and Ship to. An amber pallet box is a guess or a blank: type the right number from the BOL.</li>
+      <li><b>Download PDF report</b> for a one-page summary to send or print.</li>
+    </ol>
+    <div class="more">
+      <span><b>Warehouses</b> (names, addresses and how they read on a BOL) come from the company settings file imported on the toolkit page.</span>
+      <span><b>Pallets</b> come from the Grand Total on each BOL. When it can't be read, the skid count under Handling Unit is used and the box is marked amber to check.</span>
+      <span><b>Box truck:</b> a BOL whose carrier says Box Truck counts as a box truck trip. Add other names your truck goes by in <b>Other box truck names</b>.</span>
+      <span><b>It learns:</b> when you fix a Ship from, Ship to or carrier, it remembers that spelling and uses it on the next BOLs.</span>
+    </div>
+  </details>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,3500)}
+  // Warehouses come from the settings file: a code, a name, and how each one is spelled on BOLs.
+  // strong (match): street names and site codes. weak (zip): zip codes, which scans misread more often.
+  const rx=(p,f)=>{try{return p?new RegExp(p,f):null}catch(e){return null}};
+  const SITES=(TK.sites||[]).map(x=>({code:x.main?"MAIN":x.code,name:x.name||x.code,re:rx(x.match,"i")||/(?!)/,zip:rx(x.zip)||/(?!)/}));
+  const MAIN_NAME=((TK.sites||[]).find(x=>x.main)||{}).short||"Main";
+  const OFF=SITES.filter(x=>x.code!=="MAIN").map(x=>x.code);
+  let bols=[], truck="", blankTruck=false;
+  try{ truck=localStorage.getItem("ledger.truck")||""; blankTruck=localStorage.getItem("ledger.blankTruck")==="1" }catch(e){}
+  $("truck").value=truck; $("blankTruck").checked=blankTruck;
+
+  // ---------- reading the Word file ----------
+  // .docx is a zip with the text in word/document.xml. Old .doc files keep their text inside a binary
+  // container; pulling out every run of readable characters (both 1-byte and 2-byte text) recovers it.
+  async function wordText(file){
+    const buf=new Uint8Array(await file.arrayBuffer());
+    if(buf[0]===0x50&&buf[1]===0x4B&&window.JSZip){
+      const zip=await JSZip.loadAsync(buf), xml=await zip.file("word/document.xml")?.async("string");
+      if(xml) return xml.replace(/<w:tab\/>/g,"\t").replace(/<\/w:p>|<\/w:tc>|<w:br\/>/g,"\n").replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">");
+    }
+    const runs=[]; let cur="";
+    const ok=c=>c===9||c===10||c===13||c===7||(c>=32&&c<127)||(c>=160&&c<256);
+    const push=()=>{ if(cur.replace(/\s/g,"").length>=3) runs.push(cur); cur=""; };
+    // 2-byte text
+    for(let i=0;i+1<buf.length;i+=2){ const c=buf[i]|(buf[i+1]<<8); if(ok(c)) cur+=String.fromCharCode(c); else push(); } push();
+    const wide=runs.join("\n"); runs.length=0;
+    // 1-byte text
+    for(let i=0;i<buf.length;i++){ const c=buf[i]; if(ok(c)) cur+=String.fromCharCode(c); else push(); } push();
+    const narrow=runs.join("\n");
+    const t=(/ship\s*from/i.test(wide)?wide:"")+"\n"+(/ship\s*from/i.test(narrow)?narrow:"");
+    return (t.trim()?t:wide+"\n"+narrow).replace(/[\x07\r]/g,"\n");
+  }
+  function siteIn(text){
+    for(const key of ["re","zip"]){ let best=null,at=Infinity; for(const s of SITES){ const m=text.match(s[key]); if(m&&m.index<at){best=s.code;at=m.index} } if(best) return best; }
+    return null;
+  }
+  function block(text,startRe,endRe){
+    const m=text.match(startRe); if(!m) return "";
+    const rest=text.slice(m.index+m[0].length), e=rest.search(endRe);
+    return rest.slice(0,e>0?Math.min(e,400):400);
+  }
+  // ---------- what the tracker has learned from your corrections ----------
+  // Saved in the toolkit's shared storage, so every fix helps the next BOL and works for anyone using the toolkit.
+  //   sites:    words from an address block you corrected -> which site it is
+  //   carriers: a carrier name as it was read -> what you corrected it to
+  let learned={sites:[],carriers:{}}, db=null;
+  const words=t=>[...new Set(String(t||"").toLowerCase().match(/[a-z]{4,}|\d{3,}/g)||[])].filter(w=>!/^(ship|from|street|avenue)$/.test(w));
+  function learnedSite(blockText){
+    const have=new Set(words(blockText)); let best=null, bestScore=0;
+    for(const l of learned.sites){ const hit=l.w.filter(w=>have.has(w)).length/l.w.length; if(hit>=0.6&&hit>bestScore){best=l.code;bestScore=hit} }
+    return best;
+  }
+  const carrierKey=c=>String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  async function saveLearned(){ if(!db) return; try{ await db.doc("learn/bol").set(learned); }catch(e){ toast("Couldn't save that correction for next time"); } }
+  function learnSite(text,code){
+    const w=words(text).slice(0,12); if(w.length<2||!code) return false;
+    learned.sites=learned.sites.filter(l=>!(l.w.length===w.length&&l.w.every((x,i)=>x===w[i])));
+    learned.sites.unshift({w,code}); learned.sites=learned.sites.slice(0,300); return true;
+  }
+
+  // On the Grand Total line the pallet count comes right before the weight ("Grand Total 28 | 18,200").
+  // A stray mark before it ("7 _ 28") is skipped by taking the last small number before the weight, and when
+  // nothing readable sits before the weight (a hand-written total), it's left blank rather than guessed.
+  function grandTotal(text){
+    const re=/(?:g|\b)rand\s*tota[l1I]/ig; let m, unreadable=false;
+    while((m=re.exec(text))){
+      const seg=text.slice(m.index+m[0].length,m.index+m[0].length+60), small=[]; let weight=false, mm; const nre=/\d[\d,.]*/g;
+      while((mm=nre.exec(seg))){ const t=mm[0];
+        if(/[,.]\d/.test(t)||t.replace(/\D/g,"").length>=4){weight=true;break}
+        if(/[A-Za-z]/.test(seg[mm.index-1]||"")) continue;   // stuck to a letter ("B8" for 38): too garbled to trust
+        small.push(+t); }
+      if(small.length) return weight?small[small.length-1]:small[0];
+      if(weight) unreadable=true;   // the total is there but its count isn't readable (often hand-written)
+    }
+    return unreadable?null:undefined;   // undefined: no Grand Total line on the page at all
+  }
+  function parse(text,name){
+    const from=block(text,/ship\s*from\s*:?/i,/ship\s*to|carrier|bill\s*to|third\s*party/i);
+    const to=block(text,/ship\s*to\s*:?/i,/carrier|third\s*party|bill\s*to|special\s*instr|seal|trailer/i);
+    // your past corrections come first, then the known addresses
+    let f=learnedSite(from)||siteIn(from), t=learnedSite(to)||siteIn(to);
+    if(!f||!t){ // fall back to the order addresses appear in the file: the first is where it ships from
+      const seen=[]; SITES.forEach(s=>{ const m=text.search(s.re); const z=text.search(s.zip); const at=m>=0?m:z; if(at>=0) seen.push([at,s.code]); }); seen.sort((a,b)=>a[0]-b[0]);
+      const codes=[...new Set(seen.map(x=>x[1]))];
+      // only trust the order when both ends were found; one address alone can't say which way it went
+      if(codes.length>=2||f||t){ f=f||codes.find(c=>c!==t)||null; t=t||codes.find(c=>c!==f)||null; }
+    }
+    const cm=text.match(/carrier\s*(name)\s*[:#]?\s*\n*\s*([A-Za-z0-9&.,' \-]{2,40})/i);
+    let carrier=cm?cm[2].trim().replace(/\s{2,}.*/,""):"";
+    if(/^(name|scac|pro|trailer)/i.test(carrier)||/\d{3,}|\b(ave|st|street|road|building)\b/i.test(carrier)) carrier="";   // an address line, not a carrier
+    // your regular carriers (from the settings file, with how scans tend to misread them), then common national ones
+    const KNOWN=[...(TK.carriers||[]).map(c=>[rx(c.match||c.name,"i")||/(?!)/,c.name]),[/\bBox\s*Truck\b/i,"Box Truck"],
+      [/\bWerner\b/i,"Werner"],[/\bEstes\b/i,"Estes"],[/\bFed\s?Ex\b/i,"FedEx"],[/\bUPS\b/,"UPS"],[/\bXPO\b/i,"XPO"],[/\bAveritt\b/i,"Averitt"],[/\bOld\s*Dominion\b/i,"Old Dominion"],[/\bSaia\b/i,"Saia"]];
+    const cblock=block(text,/carrier\s*name\s*:?/i,/third\s*party|scac|special/i)||text;
+    const hit=KNOWN.find(([re])=>re.test(cblock))||KNOWN.find(([re])=>re.test(text));
+    if(hit) carrier=hit[1];
+    const fixedCarrier=learned.carriers[carrierKey(carrier)];
+    const carrierRaw=carrier; if(fixedCarrier) carrier=fixedCarrier;
+    // pallets: the Grand Total count, or else the skid count under Handling Unit
+    // Pallets: the Grand Total count, else the Handling Unit skid count. Never a single line item.
+    const gt=grandTotal(text);
+    // When the total can't be read, the skid count under Handling Unit is used as a best guess to check.
+    const skid=text.match(/handling\s*unit\s*qty[^0-9]{0,30}?(\d{1,3})(?![\d,.])/i)||text.match(/(?<![\d,.])\b(\d{1,3})\s*\|?\s*skids?\b/i);
+    const gm=gt!=null?[0,gt]:skid; const palletsUnsure=gt===null&&!!skid;
+    const dm0=text.match(/Date\s*:?\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{2,4})/i);
+    const dm=dm0?[0,`${dm0[1]}/${dm0[2]}/${dm0[3]}`]:text.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/);
+    return {id:Math.random().toString(36).slice(2),palletsUnsure,name,text,fromBlock:from,toBlock:to,carrierRaw,learnedNote:fixedCarrier?"carrier":"",from:f,to:t,carrier,pallets:gm?+gm[1]:null,date:dm?dm[1]:"",fromText:from.trim().split(/\n/).filter(Boolean).slice(0,2).join(", "),toText:to.trim().split(/\n/).filter(Boolean).slice(0,2).join(", ")};
+  }
+  function direction(b){
+    if(b.from==="MAIN"&&OFF.includes(b.to)) return "out";
+    if(OFF.includes(b.from)&&b.to==="MAIN") return "back";
+    return "other";
+  }
+  // A carrier that says "box truck" always counts; names you add in the setting count too.
+  const isTruck=b=>{
+    if(!b.carrier) return blankTruck;
+    const c=b.carrier.toLowerCase();
+    return /box\s*truck/.test(c)||truck.split(",").map(k=>k.trim().toLowerCase()).filter(Boolean).some(k=>c.includes(k));
+  };
+
+
+  // ---------- reading PDFs ----------
+  // Printed PDFs have their text built in. Scanned ones are pictures, so they're read from the page image,
+  // turned the right way up first, the same way the MFN Renamer does it.
+  try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
+  let ocrP=null;
+  function ocrSetup(){
+    if(!ocrP){
+      if(!window.Tesseract) return Promise.reject(new Error("ocr-missing"));
+      const lang=new URL("eng-ocr.wasm",document.baseURI).href;
+      ocrP=Tesseract.createWorker("eng",1,{workerPath:"https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",corePath:"https://unpkg.com/tesseract.js-core@5.1.1",langPath:lang+"?f=",gzip:false,cacheMethod:"none"})
+        .then(async w=>{ await w.setParameters({tessedit_pageseg_mode:"3"}); return w; });
+      ocrP.catch(()=>{ocrP=null});
+    }
+    return ocrP;
+  }
+  const canvasOf=(w,h)=>{const c=document.createElement("canvas");c.width=w;c.height=h;return c};
+  function rotated(src,a){ if(!a) return src; const side=a%180!==0, c=canvasOf(side?src.height:src.width,side?src.width:src.height), x=c.getContext("2d");
+    x.translate(c.width/2,c.height/2); x.rotate(a*Math.PI/180); x.drawImage(src,-src.width/2,-src.height/2); return c; }
+  function scaled(src,L){ const k=Math.min(1,L/Math.max(src.width,src.height)), c=canvasOf(Math.round(src.width*k),Math.round(src.height*k)); c.getContext("2d").drawImage(src,0,0,c.width,c.height); return c; }
+  function liftHighlights(c){ const x=c.getContext("2d"), im=x.getImageData(0,0,c.width,c.height), d=im.data; for(let i=0;i<d.length;i+=4){const v=Math.max(d[i],d[i+1],d[i+2]);d[i]=d[i+1]=d[i+2]=v} x.putImageData(im,0,0); }
+  // White out every dark run longer than 0.6 inch across or down: the form's box lines, never a letter.
+  function eraseLines(src,ppi){
+    const W=src.width,H=src.height, c=canvasOf(W,H), x=c.getContext("2d"); x.drawImage(src,0,0);
+    const im=x.getImageData(0,0,W,H), d=im.data, L=Math.round(0.6*ppi), dark=new Uint8Array(W*H), kill=new Uint8Array(W*H);
+    for(let p=0,i=0;p<W*H;p++,i+=4) dark[p]=(0.3*d[i]+0.59*d[i+1]+0.11*d[i+2])<150?1:0;
+    for(let y=0;y<H;y++){ let s=-1; for(let xx=0;xx<=W;xx++){ const on=xx<W&&dark[y*W+xx]; if(on&&s<0) s=xx; if(!on&&s>=0){ if(xx-s>=L) for(let k=s;k<xx;k++) kill[y*W+k]=1; s=-1; } } }
+    for(let xx=0;xx<W;xx++){ let s=-1; for(let y=0;y<=H;y++){ const on=y<H&&dark[y*W+xx]; if(on&&s<0) s=y; if(!on&&s>=0){ if(y-s>=L) for(let k=s;k<y;k++) kill[k*W+xx]=1; s=-1; } } }
+    for(let y=1;y<H-1;y++) for(let xx=1;xx<W-1;xx++){ const p=y*W+xx; if(kill[p]||kill[p-1]||kill[p+1]||kill[p-W]||kill[p+W]){ const i=p*4; d[i]=d[i+1]=d[i+2]=255; } }
+    x.putImageData(im,0,0); return c;
+  }
+  function wordScore(data){ let n=0; (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>(l.words||[]).forEach(w=>{ const t=String(w.text||""); if(w.confidence>=70&&t.length>=3&&/[A-Za-z]/.test(t)) n++; })))); return n; }
+  async function uprightAngle(w,c){
+    const sm=scaled(c,1100), score=async a=>wordScore((await w.recognize(rotated(sm,a),{},{blocks:true})).data);
+    const A=await score(0), B=await score(180);
+    if(A>=B) return (await score(270))>0.5*A?270:0;
+    return (await score(90))>0.5*B?90:180;
+  }
+  async function pdfPages(file,onPage){
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise, out=[];
+    try{
+      for(let i=1;i<=pdf.numPages;i++){
+        onPage(i,pdf.numPages);
+        const page=await pdf.getPage(i), tc=await page.getTextContent();
+        let t=tc.items.map(x=>x.str).join(" ");
+        if(t.replace(/\s/g,"").length<200){   // little or no built-in text: a scan
+          const w=await ocrSetup(), v0=page.getViewport({scale:1}), vp=page.getViewport({scale:Math.min(3,2600/Math.max(v0.width,v0.height))});
+          const c=canvasOf(Math.ceil(vp.width),Math.ceil(vp.height)), x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height);
+          await page.render({canvasContext:x,viewport:vp}).promise;
+          liftHighlights(c);
+          const a=await uprightAngle(w,c), up=rotated(c,a);
+          t+="\n"+((await w.recognize(up)).data.text||"");
+          // Couldn't find both addresses: boxed forms (and slightly tilted scans of them) confuse the reader,
+          // so erase the form's ruled lines and read again, once as a page and once as scattered text.
+          const b=parse(t,"");
+          if(!b.from||!b.to){
+            const clean=eraseLines(up,vp.scale*72);
+            t+="\n"+((await w.recognize(clean)).data.text||"");
+            await w.setParameters({tessedit_pageseg_mode:"11"});
+            try{ t+="\n"+((await w.recognize(clean)).data.text||""); } finally { await w.setParameters({tessedit_pageseg_mode:"3"}); }
+          }
+        }
+        out.push(t); page.cleanup();
+      }
+    } finally { pdf.destroy(); }
+    return out;
+  }
+  // One PDF can hold a stack of BOLs. Every page that says Bill of Lading or Ship From starts a new BOL; a page
+  // with neither (page 2 of a BOL) stays with the one before it.
+  function groupBols(pages){
+    const groups=[];
+    pages.forEach((t,i)=>{ if(!groups.length||/ship\s*fr[o0]m|bill\s*of\s*lad/i.test(t)) groups.push({pages:[],text:""}); const g=groups[groups.length-1]; g.pages.push(i); g.text+="\n"+t; });
+    return groups;
+  }
+  function pageLabel(idx){ return (idx.length>1?"pages ":"page ")+(idx.length>1?`${idx[0]+1}–${idx[idx.length-1]+1}`:`${idx[0]+1}`); }
+
+  async function addFiles(files){
+    const docs=[...files].filter(f=>/\.(docx?|pdf)$/i.test(f.name));
+    if(!docs.length){toast("Drop PDF or Word files");return}
+    const prog=$("progress"); let added=0;
+    for(const [k,f] of docs.entries()){
+      const tag=docs.length>1?`File ${k+1} of ${docs.length}: `:"";
+      try{
+        if(/\.pdf$/i.test(f.name)){
+          prog.textContent=tag+"Opening "+f.name+"…";
+          const pages=await pdfPages(f,(i,n)=>{prog.textContent=`${tag}${f.name}: reading page ${i} of ${n}…`});
+          const groups=groupBols(pages);
+          groups.forEach(g=>{ bols.push(parse(g.text,groups.length>1?`${f.name} · ${pageLabel(g.pages)}`:f.name)); added++; });
+        } else { bols.push(parse(await wordText(f),f.name)); added++; }
+      }catch(e){ bols.push({id:Math.random().toString(36).slice(2),name:f.name,from:null,to:null,carrier:"",pallets:null,date:"",error:true}); added++; }
+      render();
+    }
+    prog.textContent=""; render(); toast(`Read ${added} BOL${added===1?"":"s"}`);
+  }
+
+  // ---------- page ----------
+  const nm=c=>c?(SITES.find(s=>s.code===c)||{}).name||c:"Not found";
+  function render(){
+    const out=bols.filter(b=>direction(b)==="out"), back=bols.filter(b=>direction(b)==="back");
+    const sum=a=>a.reduce((n,b)=>n+(+b.pallets||0),0);
+    const tr=a=>a.filter(isTruck).length;
+    // One row per warehouse: trips from the main warehouse to it, and trips from it back.
+    const row=(label,o,k)=>`<tr><th scope="row">${label}</th><td class="big go">${o.length}</td><td class="big back">${k.length}</td><td class="pl">${sum(o)}</td><td class="pl">${sum(k)}</td></tr>`;
+    const unread=bols.filter(b=>direction(b)==="other").length, truckTrips=tr(out)+tr(back);
+    $("tally").innerHTML=`<table class="sum">
+      <thead><tr><th></th><th>Went there<span>from ${esc(MAIN_NAME)}</span></th><th>Came back<span>to ${esc(MAIN_NAME)}</span></th><th>Pallets there</th><th>Pallets back</th></tr></thead>
+      <tbody>${OFF.map(code=>row(`${code}<span>${esc(nm(code).split(" · ")[1]||"")}</span>`,out.filter(b=>b.to===code),back.filter(b=>b.from===code))).join("")}</tbody>
+      <tfoot>${row("Total",out,back)}</tfoot></table>
+      <p class="sumnote">${truckTrips} of these ${out.length+back.length} trips were by box truck.${unread?` <b>${unread} BOL${unread>1?"s":""} couldn't be placed</b>; pick the warehouses in the list below and ${unread>1?"they're":"it's"} counted.`:""}</p>`;
+    const carriers=[...new Set(bols.map(b=>b.carrier).filter(Boolean))];
+    $("carriers").innerHTML=carriers.map(c=>`<option value="${esc(c)}">`).join("");
+    $("rows").innerHTML=bols.length?bols.map(b=>{
+      const d=direction(b);
+      return `<tr data-id="${b.id}">
+        <td>${esc(b.name)}${b.error?'<div class="small">Couldn\'t read this file</div>':""}</td>
+        <td class="n">${esc(b.date)}</td>
+        <td><span class="dir ${d}">${d==="out"?"Off-site":d==="back"?"Back":"Check"}</span></td>
+        <td>${siteSel(b,"from")}</td>
+        <td>${siteSel(b,"to")}</td>
+        <td><input class="car" data-k="carrier" value="${esc(b.carrier||"")}" placeholder="—" aria-label="Carrier for ${esc(b.name)}">${isTruck(b)?'<span class="truck">Box truck</span>':""}</td>
+        <td><input class="pal${b.pallets==null||(b.palletsUnsure&&!(b.fixed&&b.fixed.pallets))?" miss":""}" data-k="pallets" placeholder="?" title="${b.palletsUnsure?"Best guess from the skid count. The Grand Total wasn't readable, please check":""}" inputmode="numeric" value="${b.pallets??""}" aria-label="Pallets for ${esc(b.name)}"></td>
+        <td><button class="btn x" data-del="${b.id}" aria-label="Remove ${esc(b.name)}" title="Remove">✕</button></td>
+      </tr>`;}).join(""):`<tr><td colspan="8" class="empty">No BOLs yet. Drop the PDFs or Word files above and each one shows up here with where it went and how many pallets.</td></tr>`;
+    $("csv").disabled=!bols.length; $("clear").disabled=!bols.length;
+    const nL=learned.sites.length+Object.keys(learned.carriers).length;
+    $("learnNote").textContent=db?(nL?`· Remembering ${nL} correction${nL===1?"":"s"} you've made`:"· Fix a site or carrier in the list and it's remembered for next time"):"";
+  }
+  function siteSel(b,k){
+    return `<select data-k="${k}" aria-label="${k==="from"?"Ship from":"Ship to"} for ${esc(b.name)}">${[`<option value="">?</option>`,...SITES.map(s=>`<option value="${s.code}"${b[k]===s.code?" selected":""}>${s.code==="MAIN"?"Main":s.code}</option>`)].join("")}</select>`;
+  }
+  $("rows").addEventListener("click",e=>{ const b=e.target.closest("button[data-del]"); if(b){ bols=bols.filter(x=>x.id!==b.dataset.del); render(); } });
+  $("rows").addEventListener("change",e=>{
+    const tr=e.target.closest("tr"), b=tr&&bols.find(x=>x.id===tr.dataset.id); if(!b) return;
+    const k=e.target.dataset.k, v=e.target.value;
+    if(k==="pallets"){ b.pallets=v===""?null:+v.replace(/\D/g,""); b.fixed=(b.fixed||{}); b.fixed.pallets=true; render(); return; }
+    b[k]=v.trim()||null; b.fixed=(b.fixed||{}); b.fixed[k]=true;
+    let learnedIt=false;
+    if((k==="from"||k==="to")&&b[k]) learnedIt=learnSite(k==="from"?b.fromBlock:b.toBlock,b[k]);
+    if(k==="carrier"&&b.carrierRaw&&b.carrier&&carrierKey(b.carrierRaw)!==carrierKey(b.carrier)){ learned.carriers[carrierKey(b.carrierRaw)]=b.carrier; learnedIt=true; }
+    if(learnedIt){ saveLearned(); relearn(); toast("Got it. The tracker will remember that for next time"); }
+    render();
+  });
+  // Apply new corrections to the BOLs already in the list, except fields you've fixed by hand.
+  function relearn(){
+    bols=bols.map(b=>{ if(!b.text) return b; const n=parse(b.text,b.name); const out={...n,id:b.id,fixed:b.fixed};
+      for(const k of Object.keys(b.fixed||{})) out[k]=b[k]; return out; });
+  }
+  $("truck").addEventListener("input",e=>{ truck=e.target.value.trim(); try{localStorage.setItem("ledger.truck",truck)}catch(err){} render(); });
+  $("blankTruck").addEventListener("change",e=>{ blankTruck=e.target.checked; try{localStorage.setItem("ledger.blankTruck",blankTruck?"1":"0")}catch(err){} render(); });
+  $("clear").onclick=()=>{bols=[];render()};
+  // ---------- PDF report ----------
+  // A one-glance report for a manager: what the report is, the dates it covers, trips there and back for each
+  // warehouse, then every BOL it counted. Printed on white letter paper with the toolkit green.
+  function toDate(s){ const m=String(s||"").match(/(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})/); if(!m) return null;
+    if(+m[1]<1||+m[1]>12||+m[2]<1||+m[2]>31) return null;   // a misread like "0-30-26" isn't a date
+    const y=+m[3]<100?2000+ +m[3]:+m[3], d=new Date(y,+m[1]-1,+m[2]); return isNaN(d)?null:d; }
+  const fmt=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  function buildPdf(){
+    const {jsPDF}=window.jspdf, doc=new jsPDF({unit:"pt",format:"letter"}), W=612, M=48, GREEN=[0,150,0], INK=[25,30,25], MUTED=[110,120,110], LINE=[215,222,215];
+    const out=bols.filter(b=>direction(b)==="out"), back=bols.filter(b=>direction(b)==="back"), sum=a=>a.reduce((n,b)=>n+(+b.pallets||0),0);
+    const dates=bols.map(b=>toDate(b.date)).filter(Boolean).sort((a,b)=>a-b);
+    const range=dates.length?(fmt(dates[0])===fmt(dates[dates.length-1])?fmt(dates[0]):`${fmt(dates[0])} – ${fmt(dates[dates.length-1])}`):"Dates not read from the BOLs";
+    let y=M;
+    doc.setFillColor(...GREEN); doc.rect(0,0,W,6,"F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(22); doc.setTextColor(...INK); doc.text("Off-site shipments report",M,y+18);
+    doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(...MUTED);
+    doc.text(`Trips from ${MAIN_NAME} to each off-site warehouse, and back.  ${range}`,M,y+38);
+    doc.text(`From ${bols.length} bill${bols.length===1?"":"s"} of lading. Made ${fmt(new Date())}.`,M,y+54);
+    y+=84;
+    // summary table
+    const cols=[{t:"Warehouse",x:M,a:"left"},{t:"Went there",x:300,a:"right"},{t:"Came back",x:390,a:"right"},{t:"Pallets there",x:478,a:"right"},{t:"Pallets back",x:W-M,a:"right"}];
+    doc.setFontSize(9); doc.setFont("helvetica","bold"); doc.setTextColor(...MUTED);
+    cols.forEach(c=>doc.text(c.t.toUpperCase(),c.x,y,{align:c.a})); y+=8; doc.setDrawColor(...LINE); doc.setLineWidth(1); doc.line(M,y,W-M,y);
+    const rowsSum=OFF.map(code=>[code,nm(code).split(" · ")[1]||"",out.filter(b=>b.to===code),back.filter(b=>b.from===code)]);
+    rowsSum.push(["Total","",out,back]);
+    rowsSum.forEach(([code,street,o,k],i)=>{
+      const total=code==="Total"; y+=total?30:34;
+      if(total){ doc.setDrawColor(...INK); doc.setLineWidth(1.2); doc.line(M,y-22,W-M,y-22); }
+      doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...INK); doc.text(code,M,y);
+      if(street){ doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(street,M+44,y); }
+      doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.setTextColor(...(total?INK:GREEN));
+      doc.text(String(o.length),300,y+2,{align:"right"}); doc.text(String(k.length),390,y+2,{align:"right"});
+      doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(...INK);
+      doc.text(String(sum(o)),478,y,{align:"right"}); doc.text(String(sum(k)),W-M,y,{align:"right"});
+      if(!total){ doc.setDrawColor(...LINE); doc.setLineWidth(.6); doc.line(M,y+12,W-M,y+12); }
+    });
+    y+=26; doc.setFontSize(10); doc.setFont("helvetica","normal"); doc.setTextColor(...MUTED);
+    const trucks=bols.filter(isTruck).length, unplaced=bols.filter(b=>direction(b)==="other").length, noPal=bols.filter(b=>b.pallets==null).length;
+    const notes=[`${trucks} of the ${out.length+back.length} trips were made with the box truck.`];
+    if(unplaced) notes.push(`${unplaced} BOL${unplaced>1?"s":""} could not be matched to a warehouse and ${unplaced>1?"are":"is"} not counted above.`);
+    if(noPal) notes.push(`${noPal} BOL${noPal>1?"s have":" has"} no pallet count, so the pallet totals may be low.`);
+    notes.forEach(n=>{ doc.text(n,M,y); y+=15; });
+    // BOL list
+    y+=18; doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...INK); doc.text("Bills of lading counted",M,y); y+=18;
+    const lc=[{t:"Date",x:M,a:"left"},{t:"From",x:M+70,a:"left"},{t:"To",x:M+130,a:"left"},{t:"Carrier",x:M+190,a:"left"},{t:"Pallets",x:M+340,a:"right"},{t:"File",x:M+356,a:"left"}];
+    const head=()=>{ doc.setFont("helvetica","bold"); doc.setFontSize(8.5); doc.setTextColor(...MUTED); lc.forEach(c=>doc.text(c.t.toUpperCase(),c.x,y,{align:c.a})); y+=6; doc.setDrawColor(...LINE); doc.setLineWidth(.8); doc.line(M,y,W-M,y); y+=14; };
+    head();
+    const sorted=[...bols].sort((a,b)=>(toDate(a.date)||0)-(toDate(b.date)||0));
+    const short=c=>c==="MAIN"?MAIN_NAME:(c||"?");
+    sorted.forEach(b=>{
+      if(y>740){ doc.addPage(); doc.setFillColor(...GREEN); doc.rect(0,0,W,6,"F"); y=M; head(); }
+      const d=toDate(b.date);
+      doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...INK);
+      doc.text(d?d.toLocaleDateString("en-US"):"—",M,y); doc.text(short(b.from),M+70,y); doc.text(short(b.to),M+130,y);
+      doc.text(((b.carrier||"—")+(isTruck(b)&&!/box\s*truck/i.test(b.carrier||"")?" (box truck)":"")).slice(0,26),M+190,y);
+      doc.text(b.pallets==null?"—":String(b.pallets),M+340,y,{align:"right"});
+      doc.setTextColor(...MUTED); doc.setFontSize(8.5); doc.text(doc.splitTextToSize(b.name,W-M-(M+356))[0],M+356,y);
+      y+=17;
+    });
+    const pages=doc.getNumberOfPages();
+    for(let i=1;i<=pages;i++){ doc.setPage(i); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text(`Off-site shipments report · ${range} · page ${i} of ${pages}`,M,770); }
+    return doc.output("blob");
+  }
+  $("csv").onclick=async()=>{
+    if(!window.jspdf){toast("The PDF maker didn't load. Reload the page and try again");return}
+    const dl=await toolkitUse("downloads");
+    if(!dl){toast("Downloads aren't available in this view");return}
+    const d=new Date(), day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    try{ await dl.save({filename:`off-site-shipments-${day}.pdf`,data:buildPdf()}); toast("Saved the PDF report"); }
+    catch(e){ if(e&&e.code==="declined") return; toast(e&&e.code==="rate_limited"?"A save is already open":`Couldn't save the PDF (${(e&&e.message)||(e&&e.code)||"unknown"})`); }
+  };
+
+  const drop=$("drop"), picker=$("picker");
+  drop.addEventListener("click",e=>{ if(e.target!==picker){e.preventDefault();picker.click()} });
+  drop.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();picker.click()} });
+  picker.addEventListener("change",()=>{addFiles(picker.files);picker.value=""});
+  ["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over")}));
+  ["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
+  drop.addEventListener("drop",e=>{e.stopPropagation();addFiles(e.dataTransfer.files)});
+  document.addEventListener("dragover",e=>e.preventDefault());
+  document.addEventListener("drop",e=>{e.preventDefault(); if(!drop.contains(e.target)) addFiles(e.dataTransfer.files)});
+  render();
+  (async()=>{
+    try{ db=await toolkitUse("db"); }catch(e){ db=null; }
+    if(!db){ render(); return; }
+    db.doc("learn/bol").onSnapshot(s=>{ const d=s.exists?s.data():null; learned={sites:(d&&d.sites)||[],carriers:(d&&d.carriers)||{}}; relearn(); render(); },()=>{});
+  })();
+})();
+</script>
+</body></html>

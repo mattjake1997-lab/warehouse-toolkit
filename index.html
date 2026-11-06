@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Warehouse Toolkit</title>
+<script src="runtime.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: a slim tab bar on top; each tool fills the rest of the screen in its own frame, kept open when you switch. */
+/* One dark look on purpose: black, green-tinted cards, green accent. */
+:root{
+  --bg:#000000; --panel:#0a0d0a; --ink:#eef2ee; --muted:#94a294; --line:#1a231a; --accent:#00c800; --accent-light:#29e029;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 var(--body);display:flex;flex-direction:column;min-height:0}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:0 16px;display:flex;align-items:stretch;gap:18px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;padding:10px 0;white-space:nowrap}
+.brand img{height:22px;width:auto;display:block}
+.brand i{display:inline-block;width:9px;height:9px;background:var(--accent);border-radius:50%;box-shadow:0 0 10px var(--accent)}
+.data{position:relative;display:flex;align-items:center;margin-left:auto}
+.data>button{font:600 13px var(--body);color:var(--muted);background:#0e130e;border:1px solid var(--line);border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+.data>button:hover{color:var(--ink)}
+.data>button.warn{color:#e8b84b;border-color:#5a4512}
+[hidden]{display:none!important}
+.panel{position:absolute;right:0;top:calc(100% + 6px);z-index:20;width:min(380px,92vw);background:#0c100c;border:1px solid #242f24;border-radius:10px;padding:14px;display:grid;gap:10px;box-shadow:0 12px 40px rgba(0,0,0,.6);font-size:14px}
+.panel h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.panel p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+.panel .where{color:var(--ink);font-weight:600}
+.panel .row{display:flex;gap:8px;flex-wrap:wrap}
+.panel button,.panel label.b{font:600 13px var(--body);background:#121812;color:var(--ink);border:1px solid #2a352a;border-radius:7px;padding:7px 11px;cursor:pointer}
+.panel button.pri{background:var(--accent);color:#001a00;border-color:var(--accent)}
+.panel hr{border:0;border-top:1px solid var(--line);margin:2px 0}
+.banner{background:#1a1205;color:#e8b84b;border-bottom:1px solid #5a4512;padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:14px}
+.banner button{font:600 13px var(--body);background:#e8b84b;color:#1a1205;border:0;border-radius:7px;padding:7px 12px;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:90vw}
+nav{display:flex;gap:2px;overflow-x:auto;min-width:0;flex:1}
+nav button{font:600 14px var(--body);color:var(--muted);background:none;border:0;border-bottom:3px solid transparent;padding:12px 12px 10px;cursor:pointer;white-space:nowrap}
+nav button:hover{color:var(--ink)}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent-light)}
+nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+nav button:not([aria-selected="true"]):hover{border-bottom-color:#964dff}
+main{flex:1;min-height:0;position:relative}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+</style></head><body>
+<header>
+  <div class="brand" id="brand"><i></i><span id="brandName">Warehouse Toolkit</span></div>
+  <nav role="tablist" aria-label="Tools">
+    <button role="tab" data-tab="pallet-audit" data-src="recon.html">Pallet Audit</button>
+    <button role="tab" data-tab="truck-load" data-src="truck.html">Truck Load Builder</button>
+    <button role="tab" data-tab="renamer" data-src="renamer.html">MFN Renamer</button>
+    <button role="tab" data-tab="dock-to-stock" data-src="d2s.html">Dock to Stock</button>
+    <button role="tab" data-tab="priority" data-src="prio.html">Dock Priority</button>
+    <button role="tab" data-tab="bol-tracker" data-src="ledger.html">BOL Tracker</button>
+    <button role="tab" data-tab="how-it-works" data-src="guide.html">How it works</button>
+  </nav>
+  <div class="data">
+    <button type="button" id="dataBtn" aria-expanded="false" aria-controls="dataPanel">Saving to: This browser</button>
+    <div class="panel" id="dataPanel" hidden role="dialog" aria-label="Where data is saved">
+      <h3>Where your work is saved</h3>
+      <p>Saving to: <span class="where" id="dataWhere">This browser</span></p>
+      <p id="dataHelp"></p>
+      <div class="row" id="folderRow"></div>
+      <hr>
+      <h3>Backup</h3>
+      <p>A backup file has everything saved: daily log, exceptions, reasons, settings. Use it to move to another computer.</p>
+      <div class="row"><button type="button" id="backupBtn">Download backup</button><label class="b">Restore from backup<input type="file" id="restoreFile" accept=".json,application/json" hidden></label></div>
+      <hr>
+      <h3>Company settings</h3>
+      <p id="setHelp">Sites, addresses, carriers, names and part weights come from a settings file, so they aren't in the code. Import it once.</p>
+      <div class="row"><label class="b">Import settings file<input type="file" id="settingsFile" accept=".json,application/json" hidden></label></div>
+    </div>
+  </div>
+</header>
+<div class="banner" id="reconnect" hidden><span id="reconnectMsg"></span><button type="button" id="reconnectBtn">Reconnect folder</button></div>
+<main id="main"></main>
+<script>
+(function(){
+  const tabs=[...document.querySelectorAll("nav button")], main=document.getElementById("main"), frames={};
+  // Each tool opens in its own frame the first time its tab is picked, and stays open (with its files and
+  // work in progress) while you use the other tabs.
+  function show(name){
+    if(name==="ledger") name="bol-tracker";   // the tab's old name
+    const btn=tabs.find(b=>b.dataset.tab===name)||tabs[0]; name=btn.dataset.tab;
+    tabs.forEach(b=>b.setAttribute("aria-selected",b===btn?"true":"false"));
+    if(!frames[name]){
+      const f=document.createElement("iframe"); f.src=btn.dataset.src; f.title=btn.textContent; main.appendChild(f); frames[name]=f;
+    }
+    Object.entries(frames).forEach(([k,f])=>f.hidden=k!==name);
+    if(location.hash.slice(1)!==name) try{history.replaceState(null,"","#"+name)}catch(e){location.hash=name}
+    try{localStorage.setItem("toolkit.tab",name)}catch(e){}
+  }
+  tabs.forEach(b=>b.addEventListener("click",()=>show(b.dataset.tab)));
+  document.querySelector("nav").addEventListener("keydown",e=>{
+    const i=tabs.indexOf(document.activeElement); if(i<0) return;
+    const j=e.key==="ArrowRight"?(i+1)%tabs.length:e.key==="ArrowLeft"?(i-1+tabs.length)%tabs.length:-1;
+    if(j>=0){e.preventDefault();tabs[j].focus();show(tabs[j].dataset.tab)}
+  });
+  window.addEventListener("hashchange",()=>show(location.hash.slice(1)));
+  // Files a tool wants to save come here: the toolkit page holds the download permission, so it asks the
+  // viewer to save and tells the tool how it went.
+  const dlP=(window.claude&&window.claude.use)?window.claude.use("downloads").catch(()=>null):Promise.resolve(null);
+  window.addEventListener("message",async e=>{
+    const d=e.data; if(!d||d.type!=="toolkit-save") return;
+    if(!Object.values(frames).some(f=>f.contentWindow===e.source)) return; // only the toolkit's own tabs
+    if(location.origin&&location.origin!=="null"&&e.origin!==location.origin) return;
+    const reply=r=>{ try{ e.source.postMessage(Object.assign({type:"toolkit-saved",id:d.id},r),(location.origin&&location.origin!=="null")?location.origin:"*"); }catch(err){} };
+    const dl=await dlP;
+    if(!dl) return reply({ok:false,code:"unavailable",message:"Saving files isn't available in this view"});
+    try{ const r=await dl.save({filename:d.filename,data:d.data}); reply({ok:true,status:r&&r.status}); }
+    catch(err){ reply({ok:false,code:(err&&err.code)||"unavailable",message:(err&&err.message)||""}); }
+  });
+  /* ---------- Where data is saved ---------- */
+  const R=window.toolkitRuntime, $=id=>document.getElementById(id);
+  function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),5000)}
+  function paint(st){
+    const folder=st.kind==="folder";
+    $("dataBtn").textContent="Saving to: "+(folder?"📁 "+st.label:"This browser");
+    $("dataBtn").classList.toggle("warn",!!(st.needsPermission||st.error));
+    $("dataWhere").textContent=folder?"the folder “"+st.label+"”":"this browser on this computer";
+    $("dataHelp").textContent=st.error?st.error:folder
+      ?"Everything is saved as files in that folder. Point everyone at the same folder on the shared drive and you'll all see the same daily log, exceptions and reasons (changes show up within about 30 seconds)."
+      :"Saved inside this browser only. Clearing browsing data erases it. Pick a folder to keep it as files you can see and back up.";
+    $("folderRow").innerHTML=!R.folderSupported?'<p>Saving to a folder needs Edge or Chrome.</p>'
+      :folder?'<button type="button" id="pickBtn">Change folder…</button><button type="button" id="browserBtn">Use this browser instead</button>'
+      :'<button type="button" class="pri" id="pickBtn">Save to a folder…</button>';
+    $("reconnect").hidden=!st.needsPermission;
+    if(st.needsPermission)$("reconnectMsg").textContent="Your saved work is in the folder “"+st.label+"”. Your browser needs one click to open it again.";
+  }
+  paint(R.status()); R.onStatus(paint);
+  $("dataBtn").addEventListener("click",()=>{const p=$("dataPanel");p.hidden=!p.hidden;$("dataBtn").setAttribute("aria-expanded",String(!p.hidden))});
+  document.addEventListener("click",e=>{if(!e.target.closest(".data")){$("dataPanel").hidden=true;$("dataBtn").setAttribute("aria-expanded","false")}});
+  $("reconnectBtn").addEventListener("click",async()=>{try{if(await R.reconnect())toast("Folder reconnected.");else toast("The folder wasn't opened. Click Reconnect and choose Allow.")}catch(e){toast("Couldn't open the folder: "+(e.message||e))}});
+  $("folderRow").addEventListener("click",async e=>{
+    if(e.target.id==="browserBtn"){if(!confirm("Save to this browser instead? The files stay in the folder; this browser's own saved data is used from now on."))return;await R.useBrowser();location.reload();return}
+    if(e.target.id!=="pickBtn")return;
+    let pick;try{pick=await R.pickFolder()}catch(err){if(err&&err.name!=="AbortError")toast("Couldn't open that folder: "+(err.message||err));return}
+    const mine=(await R.exportAll()).docs, n=Object.keys(mine).length;
+    let copy=false;
+    if(pick.count===0){copy=n>0&&confirm("This folder is empty. Copy what's saved in "+(R.status().kind==="folder"?"the current folder":"this browser")+" ("+n+" records) into it?\n\nOK = copy it over · Cancel = start the folder empty")}
+    else if(!confirm("“"+pick.name+"” already has toolkit data ("+pick.count+" records). Use it?\n\nYour current saved data isn't copied over; it stays where it is."))return;
+    await R.useFolder(pick.handle,copy);location.reload();
+  });
+  $("backupBtn").addEventListener("click",async()=>{
+    const b=await R.exportAll(),d=new Date(),stamp=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    await R.downloads.save({filename:"warehouse-toolkit-backup-"+stamp+".json",data:new Blob([JSON.stringify(b)],{type:"application/json"})});
+  });
+  $("restoreFile").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+    try{const b=JSON.parse(await f.text());const n=Object.keys((b&&b.docs)||{}).length;
+      if(!confirm("Restore "+n+" saved records from “"+f.name+"”?\n\nOK = replace everything saved now with the backup · Cancel = do nothing"))return;
+      await R.importAll(b,{replace:true});toast("Restored "+n+" records.");setTimeout(()=>location.reload(),800)}
+    catch(err){toast(err.message||"Couldn't read that backup.")}});
+  $("settingsFile").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+    try{const s=JSON.parse(await f.text());if(!s||s.app!=="warehouse-toolkit-settings")throw new Error("That isn't a Warehouse Toolkit settings file.");
+      await R.saveSettings(s);toast("Settings imported.");setTimeout(()=>location.reload(),800)}
+    catch(err){toast(err.message||"Couldn't read that settings file.")}});
+  /* ---------- Start once saved data is open ---------- */
+  R.ready.then(()=>{
+    const st=R.settings();
+    if(st.brand&&st.brand.title)$("brandName").textContent=st.brand.title;
+    if(st.brand&&st.brand.logo){const img=document.createElement("img");img.src=st.brand.logo;img.alt="";$("brand").replaceChild(img,$("brand").querySelector("i"))}
+    if(!st.app)$("setHelp").textContent="No company settings imported yet, so sites, addresses, carriers, names and part weights are blank. Import the settings file once.";
+    let start=location.hash.slice(1); if(!start) try{start=localStorage.getItem("toolkit.tab")||""}catch(e){}
+    show(start||"pallet-audit");
+  });
+})();
+</script>
+</body></html>

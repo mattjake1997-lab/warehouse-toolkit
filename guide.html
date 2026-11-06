@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<title>How it works</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a short intro, a jump list of the six tools, then one section per tool: what it's for, the files it
+   needs (each with Matt's own "how to get it" steps), the numbered steps after upload, and what you get. */
+:root{
+  --bg:#000000; --panel:#0a0d0a; --panel2:#0c0f0c; --ink:#eef2ee; --muted:#94a294; --faint:#566356; --line:#1a231a; --line2:#242f24;
+  --accent:#00c800; --accent-light:#29e029; --amber:#e8b84b; --amber-bg:#1a1205;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono","Courier New",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
+.wrap{max-width:900px;margin:0 auto;padding:32px 16px 64px;display:grid;gap:28px}
+h1{font-size:clamp(28px,5vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0}
+.lead{color:var(--muted);margin:8px 0 0;max-width:64ch}
+.basics{background:var(--panel);border:1px solid var(--line);border-left:3px solid #964dff;border-radius:12px;padding:18px 20px;display:grid;gap:10px}
+.basics h2{font-size:16px;margin:0}
+.basics ul{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--ink)}
+.jump{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.jump a{display:grid;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--ink);text-decoration:none}
+.jump a:hover,.jump a:focus-visible{border-color:var(--accent);outline:none}
+.jump b{font-size:15px}
+.jump span{color:var(--muted);font-size:13px}
+.jump i{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b48bff}
+.jump a:hover,.jump a:focus-visible{border-color:#964dff}
+section.tool{border-top:1px solid var(--line2);padding-top:26px;display:grid;gap:18px;scroll-margin-top:12px}
+.thead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.thead h2{font-size:26px;font-weight:800;letter-spacing:-.01em;margin:0}
+.thead .when{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b48bff;margin-bottom:4px}
+.go{font:600 14px var(--body);background:var(--accent);color:#001a00;border:0;border-radius:7px;padding:8px 14px;cursor:pointer}
+.go:focus-visible,.edit:focus-visible,.save:focus-visible,.cancel:focus-visible{outline:2px solid var(--accent-light);outline-offset:2px}
+.purpose{margin:0;font-size:16px;max-width:66ch}
+h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:700}
+.files{display:grid;gap:10px}
+.file{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:8px}
+.file .fname{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between}
+.file .fname b{font-size:15px}
+.file .fname span{color:var(--muted);font-size:13px}
+.get{border-left:3px solid var(--line2);padding:6px 0 6px 12px;display:grid;gap:6px}
+.get .lbl{font-size:12px;font-weight:700;color:var(--muted)}
+.get .txt{white-space:pre-wrap;font-size:14.5px}
+.get .txt.empty{color:var(--amber);font-style:italic}
+.get textarea{width:100%;min-height:110px;font:14.5px/1.5 var(--body);color:var(--ink);background:var(--panel2);border:1px solid var(--line2);border-radius:7px;padding:10px}
+.get .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.edit,.save,.cancel{font:600 13px var(--body);border-radius:7px;padding:6px 12px;cursor:pointer;border:1px solid var(--line2);background:var(--panel2);color:var(--ink)}
+.save{background:var(--accent);border-color:var(--accent);color:#001a00}
+.who{color:var(--faint);font-size:12px}
+ol.steps{margin:0;padding-left:0;list-style:none;counter-reset:s;display:grid;gap:10px}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start}
+ol.steps li::before{content:counter(s);font:700 14px var(--mono);color:#001a00;background:var(--accent);border-radius:50%;width:28px;height:28px;display:grid;place-items:center;margin-top:1px}
+ol.steps b{color:var(--ink)}
+.out{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:6px}
+.out ul,.trouble ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.trouble{color:var(--muted);font-size:14.5px}
+.trouble b{color:var(--ink)}
+.savestate{margin:6px 0 0;font-size:13px;color:var(--faint)}.savestate[data-s=on]{color:var(--accent-light)}.savestate[data-s=off]{color:var(--amber)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px}
+@media (max-width:560px){ol.steps li{grid-template-columns:28px 1fr}}
+</style>
+<!--toolkit-theme--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"><style>/* Toolkit theme. The :not(#id) raises this above the page's own light and dark settings. */
+html:root:not(#toolkit-theme){--bg:#000000;--panel:#0a0d0a;--ink:#eef2ee;--muted:#94a294;--line:#1a231a;--accent:#00c800;--display:"Inter",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono","Courier New",monospace;color-scheme:dark;--accent-ink:#001a00;--steel:#29e029;--out:#29e029;--back:#3dba78;--warn:#e8b84b;--warn-bg:#1a1205;--bad:#f06060;--bad-bg:#1a0808;}
+body{background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-stretch:normal!important;letter-spacing:-.01em}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#242f24;border-radius:3px}::-webkit-scrollbar-track{background:transparent}</style><!--/toolkit-theme-->
+<!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>How it works</h1>
+    <p class="lead" style="margin-bottom:6px">A step-by-step guide to every tool in the Warehouse Toolkit, written so someone using it for the first time can follow along. Pick a tool below and follow the numbered steps.</p>
+  </header>
+
+  <div class="basics">
+    <h2>Before you start</h2>
+    <ul>
+      <li><b>Everything happens in this page.</b> Files you drop in are read on your computer. Nothing needs installing.</li>
+      <li><b>Dropping files:</b> drag them from your folder onto the box, or click the box and pick them. Several at once is fine.</li>
+      <li><b>Reports and files</b> you download go to your Downloads folder, like any other download.</li>
+      <li><b>First time on a computer:</b> click <b>Saving to</b> in the top right. Import the <b>company settings file</b> (sites, addresses, names, part weights), then choose <b>Save to a folder…</b> and pick a folder, for example <code>Documents\Toolkit Data</code>. Edge or Chrome asks to let the site edit files in that folder: allow it.</li>
+      <li><b>Your saved work</b> (daily log, exceptions, reasons, corrections) is kept in that folder. If you skip the folder it's kept in this browser only, and clearing browsing data erases it.</li>
+      <li><b>Moving to another computer:</b> <b>Saving to</b> → <b>Download backup</b>, then <b>Restore from backup</b> on the other computer.</li>
+      <li><b>Each tool also has a short “How to use this”</b> at the bottom of its own tab.</li>
+    </ul>
+  </div>
+
+  <nav class="jump" id="jump" aria-label="Tools"></nav>
+  <div id="tools"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+  // Each tool: its tab, what it's for, when it's used, the files it needs (each gets Matt's own "how to get it"
+  // steps, saved with the toolkit), the steps after the files are in, what you get out, and common problems.
+  const TOOLS=[
+    {id:"pallet-audit",tab:"pallet-audit",name:"Pallet Audit",when:"Monthly",
+     purpose:"Checks that the pallets our records say are at each off-site warehouse (EAB, WSI, WS2) match what each warehouse reports, part by part.",
+     files:[],
+     steps:[
+      "Open the <b>Pallet Audit</b> tab. It starts on <b>Upload</b>.",
+      "Open Oracle and go to <b>On Hand - Availability</b>.",
+      "Add all the locations into an Excel sheet.",
+      "Drop each of the four files into its own box. A box turns green with the file name once it's read.",
+      "When all four are in, it moves to <b>Summary</b> on its own. The big number is the reconciled % for all three warehouses together.",
+      "Click <b>EAB</b>, <b>WSI</b> or <b>WS2</b> to see that warehouse part by part: shipped vs. reported, and whether it matches.",
+      "Open <b>Exceptions</b> to see every part that doesn't match. Pick a reason for each (Missing Pallet, Load is still on trailer, Load has not been added to Inv, Load has not been brought back to MET Inv, or Other with a note). Explained ones stop counting against the %. Missing Pallet still counts.",
+      "Back on <b>Summary</b>, click <b>Download PDF report</b>, give it a name like “November 2026 Reconciliation”, check the preview, then <b>Download PDF</b>.",
+      "Starting next month? Click <b>New Month</b> to clear the files."],
+     out:["A reconciled % for each warehouse and overall.","A PDF report with every warehouse, every exception and its reason."],
+     trouble:["<b>“Could not read” a file:</b> make sure it's the Excel export, not a PDF or a screenshot.","<b>A warehouse tab is greyed out:</b> its report hasn't been uploaded yet. The others still work."]},
+    {id:"truck-load",tab:"truck-load",name:"Truck Load Builder",when:"When planning a load back to Main",
+     purpose:"Builds a truck load of off-site pallets to bring back to Main, filling toward 26 trailer spots from one warehouse, then makes the Bill of Lading.",
+     files:[],
+     steps:[
+      "Open the <b>Truck Load Builder</b> tab and drop the <b>Off Site Combined Inv</b> file in the left box and the <b>Needs List</b> in the right box.",
+      "It picks the warehouse to pull from (EAB, then WS2, then WSI) and shows a card for each with how many trailer spots it could fill. Click a card to switch warehouses.",
+      "Click <b>Auto-fill this truck</b>. It adds the needed parts in order, highest EVV Move first, only up to the EVV Move amount, never padding extra skids.",
+      "Check the lines. Change any skid count, remove a line, or add parts from <b>Still need</b>. Parts that double-stack take half a spot. Watch <b>Trailer spots</b>: 26 is full.",
+      "Need something that isn't on the needs list? Use <b>Add a part that isn't on the needs list</b> under the truck: type the item number (it suggests what this warehouse has), the skids, and click <b>Add to truck</b>. It shows a <b>not on list</b> tag.",
+      "Check the <b>Weight</b> for each line. It's estimated from past BOLs; a warning means that part's weight varies, so double-check it.",
+      "Fill in the BOL section: carrier and SCAC (filled in for you), the BOL number (made from the date and first items; you can edit it), and pick the <b>Signature</b> name.",
+      "Click <b>Generate Bill of Lading for this load</b>. The BOL saves as a Word file, ready to print on letter paper.",
+      "The load goes into the history at the bottom, and its skids come off the needs list. If the load is cancelled, click <b>Release</b> to put them back."],
+     out:["A filled-in truck plan for one warehouse.","A Bill of Lading Word file.","A history of today's BOLs."],
+     trouble:["<b>“Couldn't find the columns”:</b> make sure it's the Items Needing Replenishment export.","<b>A part shows a flag:</b> its EVV Move numbers looked wrong in the file. Check the number before loading it.","<b>“Over trailer capacity”:</b> remove skids until spots are 26 or less."]},
+    {id:"renamer",tab:"renamer",name:"MFN Renamer",when:"Daily, after scanning receiving paperwork",
+     purpose:"Renames scanned receiving paperwork to its PO number (the number after MFN-), and splits a big scan into one file per shipment.",
+     files:[],
+     steps:[
+      "<b>Before scanning:</b> put the RECEIVED stamp only on the first page of each shipment. For paperwork that isn't stamped, write a big <b>N</b> in marker near the bottom right of the first page.",
+      "Open the <b>MFN Renamer</b> tab and drop the PDF in the box.",
+      "Wait while each page is read. Scans take a few seconds a page; the list fills in as it goes.",
+      "Check each file's status. <b>MFN found</b> is done. <b>Check this</b> is a best guess: look at the number and fix it if it's wrong. <b>Needs a number</b>: type the number in.",
+      "Pages joined or split wrong? Click <b>Pages</b> on that file and turn <b>New file</b> on or off under the right page.",
+      "Files save on their own when the batch is done: one file as a PDF, several as one zip. Click <b>Download all (.zip)</b> to save again after fixing numbers."],
+     out:["One PDF per shipment, named with its PO number, like 3100008.pdf.","It remembers your fixes: once you correct a number, it knows where that vendor's form keeps it."],
+     trouble:["<b>Two shipments in one file:</b> the second one's first page had no stamp, no N and no different MFN. Use <b>Pages</b> to split it, and stamp the first page next time.","<b>Handwritten numbers</b> are hard to read; check every “Check this” file."]},
+    {id:"dock-to-stock",tab:"dock-to-stock",name:"Dock to Stock",when:"Daily, each morning",
+     purpose:"Shows what share of the pallets on the receiving dock were put away within 24 hours, day by day, against the 98% goal.",
+     files:[],
+     steps:[
+      "Open the <b>Dock to Stock</b> tab. Leave <b>Next morning · 24-hour check</b> picked. That's the daily score.",
+      "Drop yesterday's <b>dock transaction log</b> in box 1 and this morning's <b>inventory value report</b> in box 2. Keep the date in the report's file name.",
+      "Read the top: <b>opportunities</b> (pallets that needed putting away), <b>done within 24 hours</b>, <b>not done</b>, and the dock to stock %, colored green at 98% and up, yellow at 85–97%, orange at 65–84%, red below 65%.",
+      "The list below shows only what <b>needs attention</b>. Click an item to see its pallets, receipt times and moves.",
+      "For a pallet that's allowed to sit, open it and add an exception: pick the reason from the list. It counts as good until it's put away or you end it.",
+      "Optional: under <b>Watch list</b>, load the list of parts to watch for (like the PC Help part list) and type what has to be done when they come in. Any of them received that day show at the top with <b>⚑ WATCH</b> on their row.",
+      "Loose quantity (no LPN) has an amber <b>LOOSE</b> tag. If it came in on more than one pallet, type the real pallet count in the item.",
+      "Click <b>Save (date) to daily log</b>. The day goes into the daily log, and its leftover pallets carry into the next day.",
+      "Check <b>Real 24 hours</b>, under the top numbers. It uses the time each pallet actually left the dock, instead of the 3 AM report. It says <b>Preliminary</b> until the next day’s history is loaded, then finishes on its own.",
+      "End of the week: in the <b>Daily log</b>, click <b>Download week</b> for a zip with the PDF report and spreadsheets."],
+     out:["The day's dock to stock %, colored against the 98% goal.","A daily log by week, and a weekly report to download."],
+     trouble:["<b>Numbers look high after a gap:</b> each day carries its leftovers into the next, so save days in order. If a day was skipped, load and save it.","<b>Pallets shipped straight to EAB, WS2 or WSI</b> aren't counted. You'll see them in the item's details."]},
+    {id:"priority",tab:"priority",name:"Dock Priority",when:"Daily, to plan put-away",
+     purpose:"Lists everything still sitting on the receiving dock in the order it should be put away: oldest first, high-value parts moved up, anything over 24 hours at the top.",
+     files:[],
+     steps:[
+      "Open the <b>Dock Priority</b> tab.",
+      "Drop this morning's <b>on-hand by LPN</b> report in box 1.",
+      "Drop the <b>transaction history</b> in box 2 so it knows when each pallet came in. The first time, load about two months; after that just the previous work day's file.",
+      "Optional: drop the <b>MFN Inventory Value</b> report in box 3 for dollar values, so high-value parts move up.",
+      "Work the list from #1 down. Red <b>Over 24h</b> rows are past due. Orange <b>Due this shift</b> rows have to be put away before the shift ends; each shows its due time and the shift hours left. A pallet is due at the same time on the next work day (weekends don't count).",
+      "For anything that has to sit, pick a reason in <b>Why is it still here?</b> and add a note. It drops to the bottom as excused, and everyone using the toolkit sees the reason.",
+      "Click <b>Copy summary</b> to paste the list into an email or Teams."],
+     out:["A numbered put-away list for the day.","Reasons and notes shared with the team."],
+     trouble:["<b>“No receipt found”:</b> the pallet isn't in the loaded history. Load more history and it fills in.","<b>High value amount</b> is set under <b>Settings</b> ($10,000 to start)."]},
+    {id:"bol-tracker",tab:"bol-tracker",name:"BOL Tracker",when:"Weekly or monthly",
+     purpose:"Counts how many times shipments went from your main warehouse to each off-site warehouse, and how many came back, read from the bills of lading.",
+     files:[],
+     steps:[
+      "Open the <b>BOL Tracker</b> tab and drop in the BOLs.",
+      "Each BOL becomes a row. A scanned stack is split into one row per BOL.",
+      "Read the table at the top: for EAB, WS2 and WSI, how many times a shipment <b>went there</b> and how many times one <b>came back</b>, with pallets each way and the total.",
+      "Check the list. A <b>Check</b> row couldn't be matched to a warehouse: pick Ship from and Ship to. An amber pallet box is a guess or a blank: type the number from the BOL.",
+      "If your box truck goes by another name on the BOL, add it in <b>Other box truck names</b>. “Box Truck” always counts.",
+      "Click <b>Download PDF report</b> for a one-page report to send or print."],
+     out:["Trips there and back for each warehouse, with pallets.","A one-page PDF report."],
+     trouble:["<b>Pallet total looks wrong:</b> it comes from the Grand Total on the BOL. Fix the number in the row; the totals update.","<b>It learns:</b> fixing a warehouse or carrier once teaches it for next time."]}
+  ];
+
+  const $=id=>document.getElementById(id);
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3000)}
+  let db=null, saved={}, editing=null;
+
+  $("jump").innerHTML=TOOLS.map(t=>`<a href="#${t.id}" data-to="${t.id}"><i>${esc(t.when)}</i><b>${esc(t.name)}</b><span>${esc(t.purpose.split(/[.:(]|, and /)[0].trim())}</span></a>`).join("");
+  function getBox(f){
+    const s=saved[f.id], txt=s&&s.text;
+    if(editing===f.id) return `<div class="get"><span class="lbl">How to get this file</span>
+      <textarea id="ta-${f.id}" aria-label="How to get the ${esc(f.name)}">${esc(txt||"")}</textarea>
+      <div class="btns"><button class="save" data-save="${f.id}">Save steps</button><button class="cancel" data-cancel="1">Cancel</button></div></div>`;
+    return `<div class="get"><span class="lbl">How to get this file</span>
+      <div class="txt ${txt?"":"empty"}">${txt?esc(txt):"Steps for getting this file haven't been added yet."}</div>
+      <div class="btns"><button class="edit" data-edit="${f.id}">${txt?"Edit steps":"Add steps"}</button>${s&&s.at?`<span class="who">Updated ${new Date(s.at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>`:""}</div></div>`;
+  }
+  function render(){
+    $("tools").innerHTML=TOOLS.map(t=>`<section class="tool" id="${t.id}">
+      <div class="thead"><div><span class="when">${esc(t.when)}</span><h2>${esc(t.name)}</h2></div><button class="go" data-tab="${t.tab}">Open ${esc(t.name)}</button></div>
+      <p class="purpose">${esc(t.purpose)}</p>
+      ${t.files.length?`<div><h3>Files you need</h3><div class="files">${t.files.map(f=>`<div class="file"><div class="fname"><b>${esc(f.name)}</b><span>${esc(f.note)}</span></div>${getBox(f)}</div>`).join("")}</div></div>`:""}
+      <div><h3>${t.files.length?"Steps once you have the files":"Steps"}</h3><ol class="steps">${t.steps.map(s=>`<li><span>${s}</span></li>`).join("")}</ol></div>
+      <div class="out"><h3 style="margin:0">What you get</h3><ul>${t.out.map(o=>`<li>${o}</li>`).join("")}</ul></div>
+      <div class="trouble"><h3>If something looks wrong</h3><ul>${t.trouble.map(o=>`<li>${o}</li>`).join("")}</ul></div>
+    </section>`).join("");
+  }
+  document.addEventListener("click",async e=>{
+    const b=e.target.closest("button,a[data-to]"); if(!b) return;
+    if(b.dataset.to){ e.preventDefault(); const el=$(b.dataset.to); if(el) el.scrollIntoView({behavior:"smooth"}); return; }
+    if(b.dataset.tab){ try{ window.parent.location.hash=b.dataset.tab; }catch(err){ toast("Pick the tab at the top of the toolkit"); } return; }
+    if(b.dataset.edit){ editing=b.dataset.edit; render(); const ta=$("ta-"+editing); if(ta) ta.focus(); return; }
+    if(b.dataset.cancel){ editing=null; render(); return; }
+    if(b.dataset.save){
+      const id=b.dataset.save, text=$("ta-"+id).value.trim();
+      saved={...saved,[id]:{text,at:new Date().toISOString()}}; editing=null; render();
+      if(!db){ toast("Saved on this page only. Shared saving isn't available in this view"); return; }
+      try{ await db.doc("guide/"+id).set({text,at:new Date().toISOString()}); toast("Saved for everyone using the toolkit"); }
+      catch(err){ toast("Couldn't save ("+((err&&(err.code||err.message))||"unknown")+")"); }
+    }
+  });
+  render();
+  (async()=>{
+    for(let i=0;i<4&&!db;i++){
+      try{ db=window.toolkitUse?await toolkitUse("db"):null; }catch(e){ db=null; }
+      if(!db) await new Promise(r=>setTimeout(r,1500));
+    }
+    const st=$("saveState")||{dataset:{}};
+    if(!db){ st.textContent="Steps you add here are only kept until you leave this page."; st.dataset.s="off"; return; }
+    st.textContent="Steps you add here save for everyone using the toolkit."; st.dataset.s="on";
+    db.collection("guide").onSnapshot(s=>{ const m={}; s.docs.forEach(d=>m[d.id]=d.data()); saved=m; if(!editing) render(); },()=>{});
+  })();
+})();
+</script>
+
+</body>
+</html>

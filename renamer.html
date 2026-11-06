@@ -1,0 +1,828 @@
+<!DOCTYPE html><html lang="en"><head><script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}details.howto{border-top:1px solid var(--line);padding-top:18px;margin-top:12px}
+details.howto summary{cursor:pointer;font-weight:600;font-size:15px;color:var(--ink);list-style:none;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+details.howto summary::before{content:"▸";font-size:11px}
+details[open].howto summary::before{content:"▾"}
+details.howto ol{margin:14px 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:88ch;font-size:14.5px}
+details.howto .more{color:var(--muted);font-size:13.5px;display:flex;flex-direction:column;gap:6px;max-width:88ch}
+details.howto .more b{color:var(--ink)}
+</style><!--toolkit-theme--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"><style>/* Toolkit theme. The :not(#id) raises this above the page's own light and dark settings. */
+html:root:not(#toolkit-theme){--bg:#000000;--panel:#0a0d0a;--ink:#eef2ee;--muted:#94a294;--line:#1a231a;--accent:#00c800;--display:"Inter",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono","Courier New",monospace;color-scheme:dark;--accent-ink:#001a00;--steel:#29e029;--ok:#3dba78;--ok-bg:#0a1f14;--warn:#e8b84b;--warn-bg:#1a1205;--bad:#f06060;--bad-bg:#1a0808;}
+body{background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-stretch:normal!important;letter-spacing:-.01em}
+h1 mark{background:none!important;color:var(--accent)}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#242f24;border-radius:3px}::-webkit-scrollbar-track{background:transparent}</style><!--/toolkit-theme--><!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+</head><body>
+<title>MFN PDF Renamer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one working column — drop zone on top, a manifest-style list of files below, actions pinned in a toolbar between them. */
+:root{
+  --bg:#eef0f2; --panel:#ffffff; --ink:#1b2128; --muted:#5d6874; --line:#d3d8de;
+  --accent:#f2c230; --accent-ink:#2a2200; --steel:#2f4a63;
+  --ok:#1f7a4d; --ok-bg:#e1f2e8; --warn:#9a6200; --warn-bg:#fbefd2; --bad:#b3261e; --bad-bg:#fbe3e1;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#13171c; --panel:#1b2128; --ink:#e7ebef; --muted:#9aa5b1; --line:#2d3640;
+  --accent:#f2c230; --accent-ink:#2a2200; --steel:#8fb3d4;
+  --ok:#6fd19c; --ok-bg:#173326; --warn:#f0c062; --warn-bg:#3a2d10; --bad:#ff8a80; --bad-bg:#3d1c1a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13171c; --panel:#1b2128; --ink:#e7ebef; --muted:#9aa5b1; --line:#2d3640;
+  --accent:#f2c230; --accent-ink:#2a2200; --steel:#8fb3d4;
+  --ok:#6fd19c; --ok-bg:#173326; --warn:#f0c062; --warn-bg:#3a2d10; --bad:#ff8a80; --bad-bg:#3d1c1a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 48px;display:grid;gap:20px}
+header{display:grid;gap:6px}
+h1{font-family:var(--display);font-stretch:78%;font-weight:800;font-size:clamp(28px,5vw,40px);line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inherit;padding:0 .08em}
+.sub{color:var(--muted);margin:0;max-width:62ch}
+.drop{border:2px dashed var(--line);border-radius:10px;background:var(--panel);padding:26px 18px;display:grid;justify-items:center;gap:10px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--steel)}
+.drop.over{background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+.drop strong{font-family:var(--display);font-stretch:85%;font-size:20px}
+.drop span{color:var(--muted);font-size:14px}
+.btn{font:600 14px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:9px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--steel)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover:not(:disabled){filter:brightness(.95);border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,.num:focus-visible,.drop:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tally{display:flex;flex-wrap:wrap;gap:14px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tally b{color:var(--ink);font-family:var(--mono);font-weight:600}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.auto{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-right:6px;cursor:pointer}
+.auto input{accent-color:var(--steel);width:16px;height:16px}
+.list{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.head,.row{display:grid;grid-template-columns:minmax(0,1.4fr) 150px minmax(0,1.1fr) auto;gap:14px;align-items:center;padding:12px 16px}
+.head{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);font-weight:600}
+.row+.row{border-top:1px solid var(--line)}
+.row.example{opacity:.72}
+.orig{min-width:0}
+.orig .fn{font-size:14px;overflow-wrap:anywhere}
+.orig .note{font-size:12.5px;color:var(--muted)}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);color:var(--muted);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 10px;width:max-content}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ok);background:var(--ok-bg)}
+.pill.warn{color:var(--warn);background:var(--warn-bg)}
+.pill.bad{color:var(--bad);background:var(--bad-bg)}
+.pill.busy{color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.pill.busy::before{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.pill.busy::before{animation:none}}
+.newname{display:flex;align-items:center;gap:2px;min-width:0}
+.num{font:600 15px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%;min-width:0;max-width:150px}
+.num.empty{border-color:var(--bad)}
+.ext{font:15px var(--mono);color:var(--muted)}
+.rowbtns{display:flex;gap:6px}
+.icon{padding:7px 9px}
+.empty-note{padding:10px 16px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 50%,var(--panel))}
+.how{font-size:13.5px;color:var(--muted);display:grid;gap:4px;max-width:70ch}
+.how code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px)}
+.pagesbtn{font-size:12.5px;padding:5px 9px}
+.sheet{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 45%,transparent);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding-top:env(safe-area-inset-top,0px)}
+.sheet-in{background:var(--bg);width:min(1100px,100%);max-height:92vh;border-radius:14px 14px 0 0;display:grid;grid-template-rows:auto 1fr;overflow:hidden;box-shadow:0 -8px 30px rgb(0 0 0 / .25)}
+.sheet-top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.sheet-top h2{font-family:var(--display);font-stretch:85%;font-size:20px;margin:0;min-width:0;overflow-wrap:anywhere}
+.sheet-top p{margin:0;font-size:13px;color:var(--muted);max-width:70ch}
+.pages{overflow:auto;padding:14px 16px calc(20px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-content:start}
+.pg{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;display:grid;gap:6px;position:relative;min-width:0}
+.pg.first{border-left:4px solid var(--steel)}
+.pg.alt{background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.pg.gone{opacity:.45}
+.pg img{width:100%;aspect-ratio:8.5/11;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:4px}
+.pg .ph{width:100%;aspect-ratio:8.5/11;border:1px dashed var(--line);border-radius:4px}
+.pg .lbl{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pg .lbl b{color:var(--ink);font-family:var(--mono);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:4px;min-height:20px}
+.chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:1px 5px;background:color-mix(in srgb,var(--muted) 14%,transparent);color:var(--muted)}
+.chip.mfn{font-family:var(--mono);text-transform:none;letter-spacing:0;color:var(--ink)}
+.chip.stamp{color:var(--bad);background:var(--bad-bg)}
+.chip.mark{color:var(--steel);background:color-mix(in srgb,var(--steel) 14%,transparent)}
+.split{font:600 12px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:5px 6px;cursor:pointer}
+.split[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--panel)}
+.split:disabled{cursor:default;opacity:.7}
+.split:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+.filelbl{font-size:12px;font-weight:700;color:var(--steel);min-height:18px;overflow-wrap:anywhere}
+@media (max-width:720px){
+  .head{display:none}
+  .row{grid-template-columns:1fr auto;grid-template-areas:"orig orig" "status status" "name btns";gap:8px}
+  .orig{grid-area:orig}.status{grid-area:status}.newname{grid-area:name}.rowbtns{grid-area:btns}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Rename PDFs by <mark>MFN number</mark></h1>
+    <p class="sub">Renames scanned receiving paperwork to its PO number (the number after <span style="font-family:var(--mono)">MFN-</span>), and splits a big scan into one file per shipment. How it works is at the bottom of the page.</p>
+  </header>
+
+  <label class="drop" id="drop" tabindex="0">
+    <strong>Drop PDFs here</strong>
+    <span>or click to choose files · any number at once</span>
+    <input id="picker" type="file" accept="application/pdf,.pdf" multiple hidden>
+  </label>
+
+  <div class="bar">
+    <div class="tally" id="tally"></div>
+    <div class="actions">
+      <label class="auto"><input type="checkbox" id="autoSave" checked> Save automatically</label>
+      <button class="btn" id="askAll" hidden>Read flagged with Claude</button>
+      <button class="btn" id="clear" disabled>Clear</button>
+      <button class="btn primary" id="zipAll" disabled>Download all (.zip)</button>
+    </div>
+  </div>
+
+  <div class="list" id="list" role="table" aria-label="Files"></div>
+
+  <details class="howto">
+    <summary>How to use this</summary>
+    <ol>
+      <li><b>Drop in the PDFs</b> (or click the box to pick them). One big scan of the whole stack is fine.</li>
+      <li><b>Wait while each page is read.</b> Scanned pages take a few seconds each. The list fills in as it goes.</li>
+      <li><b>Check the status of each file.</b> <i>MFN found</i> is done. <i>Check this</i> is a best guess: look at the number and fix it in the box if it's wrong. <i>Needs a number</i>: type the number in.</li>
+      <li><b>Files save on their own</b> when a batch finishes: one file as a PDF, several as one zip. Use <b>Download all</b> to save again after fixing numbers.</li>
+      <li><b>Pages joined or split wrong?</b> Click <b>Pages</b> on that file and turn <b>New file</b> on or off under any page.</li>
+    </ol>
+    <div class="more">
+      <span><b style="color:var(--ink)">How it reads each file:</b> every page is checked for <code>MFN-</code> and a number, highlighted or not, including scanned pages, which are read from the page image (a few seconds per page). If there's no MFN, it uses a lone 31x PO number (like <code>3100001</code>) and marks the file for a quick check. If it finds neither, the file is marked <b style="color:var(--ink)">Needs a number</b> for you to type in.</span>
+      <span><b style="color:var(--ink)">One PDF with several shipments?</b> Drop it in as-is. A new file starts at every page with the <b style="color:var(--ink)">RECEIVED stamp</b>, a marker <b style="color:var(--ink)">N</b> or <b style="color:var(--ink)">New</b> near the bottom right, or a different MFN. Pages with none of those, like page 2 of a packing slip, stay with the page before them.</span>
+      <span><b style="color:var(--ink)">Split or join by hand:</b> click <b style="color:var(--ink)">Pages</b> on any file from a multi-page PDF to see every page and turn <b style="color:var(--ink)">New file</b> on or off. No need to upload again.</span>
+      <span><b>To mark where a new shipment starts:</b> stamp its first page with the RECEIVED stamp, or write a big <b>N</b> near the bottom right corner in marker.</span>
+      <span><b>It learns:</b> when you fix a number, it remembers where that vendor's form keeps it and looks there first next time.</span>
+    </div>
+  </details>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-in">
+    <div class="sheet-top">
+      <div style="display:grid;gap:2px;min-width:0">
+        <h2 id="sheetTitle">Pages</h2>
+        <p>Each page with <b>New file</b> turned on starts a new PDF. Turn it on to split a file, or off to join a page onto the file before it.</p>
+      </div>
+      <button class="btn primary" id="sheetDone">Done</button>
+    </div>
+    <div class="pages" id="pages"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function(){
+  // pdf.js's worker script is loaded above on the main thread, so no separate worker fetch is needed.
+  try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
+
+  const $=s=>document.querySelector(s);
+  const listEl=$("#list"), tallyEl=$("#tally"), drop=$("#drop"), picker=$("#picker");
+  const zipBtn=$("#zipAll"), clearBtn=$("#clear"), askBtn=$("#askAll"), toastEl=$("#toast");
+  const sheet=$("#sheet"), pagesEl=$("#pages");
+  let sources=[], nextId=1, downloads=null, sample=null, canImages=false, asking=false, editing=null;
+
+  const EXAMPLES=[
+    {orig:"Scan_0412_Vendor.pdf", status:"ok", number:"3100002", note:"Found MFN-3100002"},
+    {orig:"Scan_0413.pdf · pages 3–4", status:"warn", number:"3100003", note:"Started at the RECEIVED stamp. No MFN, used PO number 3100003"},
+    {orig:"Scan_0413.pdf · page 6", status:"bad", number:"", note:"Started at the hand-written mark. No MFN or PO number found. Type the number in"},
+  ];
+  function toast(msg){toastEl.textContent=msg;toastEl.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.hidden=true,3600)}
+  function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+  // ---------- reading numbers ----------
+  const MFN_RE=/M\s*F\s*N\s*[-–—_:#.]?\s*((?:\d\s?){6,8})(?!\d)/gi;
+  const PO_RE=/(?<!\d)(3\s?1\s?\d(?:\s?\d){4})(?!\d)/g;
+  // PO numbers are 7 digits starting 31; OCR sometimes tacks a stray digit on the end.
+  const NEW_FILE_RE=(()=>{try{return TK.renamer&&TK.renamer.newFileMatch?new RegExp(TK.renamer.newFileMatch,"i"):null}catch(e){return null}})();
+  function normNum(n){ n=String(n).replace(/\D/g,""); return /^31\d{6}$/.test(n)?n.slice(0,7):n; }
+  function tallyMatches(text,re){
+    const counts=new Map(); let m; re.lastIndex=0;
+    while((m=re.exec(text))){const n=normNum(m[1]); counts.set(n,(counts.get(n)||0)+1)}
+    return [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+  }
+  // OCR often reads M-F-N as "MEN" and digits as look-alike letters; tidy that up right after the prefix.
+  // The M is often clipped by a table line or highlight edge and reads as W, V, H or nothing ("WFN-3100004").
+  // Those looser spellings only count when the number looks like one of our POs (7 digits starting 31).
+  function fixOcr(t){
+    const clean=d=>d.replace(/[Oo]/g,"0").replace(/[Il|]/g,"1").replace(/S/g,"5").replace(/B/g,"8");
+    t=t.replace(/M\s*[FE]\s*N\s*[-–—_:#.~]?\s*([0-9OoIl|SB]{6,8})/g,(m,d)=>"MFN-"+clean(d));
+    return t.replace(/(?<![A-Za-z])(?:[MWVNHIl|]{1,2}\s*)?[FEP]\s*[NM]\s*[-–—_:#.~]\s*([0-9OoIl|SB]{7,8})(?![0-9])/g,(m,d)=>/^31\d{5}/.test(clean(d))?"MFN-"+clean(d):m);
+  }
+  // The stamp's red date reads as "OCT 12 2026". Vendor forms print their dates in black, so a date in red ink is the stamp.
+  const STAMP_RE=/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\.?\s*[0-3]?\d|\b[0-3]?\d,?\s+20\d\d\b|RECEIVED/i;
+
+  async function isScan(page){
+    try{
+      const ops=await page.getOperatorList(), O=pdfjsLib.OPS;
+      return ops.fnArray.some(f=>f===O.paintImageXObject||f===O.paintJpegXObject||f===O.paintInlineImageXObject||f===O.paintImageXObjectRepeat);
+    }catch(e){ return false }
+  }
+  async function pageTextLayer(page){
+    const tc=await page.getTextContent();
+    let t=tc.items.map(i=>i.str).join(" ");
+    try{ (await page.getAnnotations()).forEach(a=>{ const c=(a.contentsObj&&a.contentsObj.str)||a.contents; if(c) t+=" "+c; }); }catch(e){}
+    return t;
+  }
+
+  // ---------- image reader (OCR) ----------
+  // Two readers share the page reading so two pages are read at once; a third reads stamps,
+  // set up for scattered text instead of a full page.
+  let ocrP=null;
+  function ocrSetup(){
+    if(!ocrP){
+      if(!window.Tesseract) return Promise.reject(new Error("ocr-missing"));
+      // The English model is published next to the page as eng-ocr.wasm; the reader appends
+      // "/eng.traineddata" to langPath, which lands in the query string and is ignored.
+      const lang=new URL("eng-ocr.wasm",document.baseURI).href;
+      const opts={workerPath:"https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",corePath:"https://unpkg.com/tesseract.js-core@5.1.1",langPath:lang+"?f=",gzip:false,cacheMethod:"none"};
+      ocrP=(async()=>{
+        const sched=Tesseract.createScheduler();
+        const [a,b,st]=await Promise.all([Tesseract.createWorker("eng",1,opts),Tesseract.createWorker("eng",1,opts),Tesseract.createWorker("eng",1,opts)]);
+        // The reader defaults to treating the page as one block of text, which scrambles forms with boxes
+        // and columns. Mode 3 finds the boxes and columns first, which is how all the tuning was done.
+        await Promise.all([a.setParameters({tessedit_pageseg_mode:"3"}),b.setParameters({tessedit_pageseg_mode:"3"}),st.setParameters({tessedit_pageseg_mode:"11"})]);
+        sched.addWorker(a); sched.addWorker(b);
+        return {read:(img,out)=>sched.addJob("recognize",img,{},out||{text:true}), stamp:img=>st.recognize(img)};
+      })();
+      ocrP.catch(()=>{ocrP=null});
+    }
+    return ocrP;
+  }
+  function canvasOf(w,h){const c=document.createElement("canvas");c.width=w;c.height=h;return c}
+  function rotated(src,angle){
+    if(!angle) return src;
+    const side=angle%180!==0, c=canvasOf(side?src.height:src.width, side?src.width:src.height), ctx=c.getContext("2d");
+    ctx.translate(c.width/2,c.height/2); ctx.rotate(angle*Math.PI/180); ctx.drawImage(src,-src.width/2,-src.height/2);
+    return c;
+  }
+  function scaled(src,longSide){
+    const k=Math.min(1,longSide/Math.max(src.width,src.height)), c=canvasOf(Math.round(src.width*k),Math.round(src.height*k));
+    c.getContext("2d").drawImage(src,0,0,c.width,c.height); return c;
+  }
+  // Keep the brightest color channel: black print stays black, highlighter and colored stamps wash out.
+  function liftHighlights(c){
+    const ctx=c.getContext("2d"), img=ctx.getImageData(0,0,c.width,c.height), d=img.data;
+    for(let i=0;i<d.length;i+=4){ const v=Math.max(d[i],d[i+1],d[i+2]); d[i]=d[i+1]=d[i+2]=v; }
+    ctx.putImageData(img,0,0);
+  }
+  // How many confident words a page reads with. The reader copes with text turned a quarter-turn one way
+  // on its own, so the right way up is found by comparing a few turns of a small copy of the page.
+  function wordScore(data){
+    let n=0;
+    (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>(l.words||[]).forEach(w=>{
+      const t=String(w.text||""); if(w.confidence>=70&&t.length>=3&&/[A-Za-z]/.test(t)) n++;
+    }))));
+    return n;
+  }
+  async function uprightAngle(ocr,c){
+    const sm=scaled(c,1100), score=async a=>wordScore((await ocr.read(rotated(sm,a),{blocks:true})).data);
+    const [A,B]=await Promise.all([score(0),score(180)]);
+    if(A>=B) return (await score(270))>0.5*A?270:0;
+    return (await score(90))>0.5*B?90:180;
+  }
+  // Red ink only, black on white, cropped to the red. Null when there's too little red to be a stamp,
+  // or so much that the form itself is printed in red.
+  function redInk(c,ppi){
+    const img=c.getContext("2d").getImageData(0,0,c.width,c.height), d=img.data, w=c.width;
+    let n=0, x0=w, y0=c.height, x1=-1, y1=-1;
+    for(let i=0,p=0;i<d.length;i+=4,p++){
+      const r=d[i],g=d[i+1],b=d[i+2], ink=r-Math.max(g,b)>70&&Math.max(g,b)<170;
+      if(ink){n++; const x=p%w, y=(p-x)/w; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y}
+      d[i]=d[i+1]=d[i+2]=ink?0:255; d[i+3]=255;
+    }
+    if(n<0.015*ppi*ppi||n>0.3*ppi*ppi) return null;
+    const pad=Math.round(0.3*ppi);
+    x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(w-1,x1+pad); y1=Math.min(c.height-1,y1+pad);
+    const full=canvasOf(w,c.height); full.getContext("2d").putImageData(img,0,0);
+    const out=canvasOf(x1-x0+1,y1-y0+1); out.getContext("2d").drawImage(full,x0,y0,out.width,out.height,0,0,out.width,out.height);
+    return out;
+  }
+  // A hand-written mark (N, NEW, a check) in the bottom-right part of the upright page. The area is cut into
+  // small cells; touching inked cells form shapes, and a shape counts when it's as tall as handwriting
+  // (a quarter inch or more) but not solid. That leaves out small printed footers, table lines and barcodes.
+  function bottomMark(up,ppi){
+    const W=up.width, H=up.height;
+    const x0=Math.round(W*0.55), x1=Math.round(W-0.1*ppi), y0=Math.round(H-1.6*ppi), y1=Math.round(H-0.1*ppi);
+    if(x1<=x0||y1<=y0) return false;
+    const cs=Math.max(2,Math.round(ppi/50)), gw=Math.floor((x1-x0)/cs), gh=Math.floor((y1-y0)/cs);
+    const d=up.getContext("2d").getImageData(x0,y0,gw*cs,gh*cs).data, rw=gw*cs, grid=new Uint8Array(gw*gh);
+    for(let gy=0;gy<gh;gy++) for(let gx=0;gx<gw;gx++){
+      let dark=0;
+      for(let yy=gy*cs;yy<gy*cs+cs;yy++) for(let xx=gx*cs;xx<gx*cs+cs;xx++){ const i=(yy*rw+xx)*4; if(0.3*d[i]+0.59*d[i+1]+0.11*d[i+2]<140) dark++; }
+      grid[gy*gw+gx]=dark>=cs*cs*0.2?1:0;
+    }
+    const dil=new Uint8Array(gw*gh);   // join letters of a word sideways only, so printed lines don't stack up
+    for(let y=0;y<gh;y++) for(let x=0;x<gw;x++) dil[y*gw+x]=(grid[y*gw+x]||(x>0&&grid[y*gw+x-1])||(x<gw-1&&grid[y*gw+x+1]))?1:0;
+    const seen=new Uint8Array(gw*gh), toIn=v=>v*cs/ppi;
+    for(let s=0;s<gw*gh;s++){
+      if(!dil[s]||seen[s]) continue;
+      const st=[s]; seen[s]=1; let minx=gw,maxx=-1,miny=gh,maxy=-1,ink=0;
+      while(st.length){
+        const k=st.pop(), x=k%gw, y=(k-x)/gw; ink+=grid[k];
+        if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y;
+        if(x+1<gw&&dil[k+1]&&!seen[k+1]){seen[k+1]=1;st.push(k+1)}
+        if(x>0&&dil[k-1]&&!seen[k-1]){seen[k-1]=1;st.push(k-1)}
+        if(y+1<gh&&dil[k+gw]&&!seen[k+gw]){seen[k+gw]=1;st.push(k+gw)}
+        if(y>0&&dil[k-gw]&&!seen[k-gw]){seen[k-gw]=1;st.push(k-gw)}
+      }
+      const bw=maxx-minx+1, bh=maxy-miny+1, h=toIn(bh), w=toIn(bw), dens=ink/(bw*bh), inkSq=ink*cs*cs/(ppi*ppi);
+      const touches=(miny===0&&maxy===gh-1)||(minx===0&&maxx===gw-1);
+      if(h>=0.25&&h<=1.3&&w>=0.15&&w<=0.9*toIn(gw)&&inkSq>=0.006&&dens<0.72&&!touches) return true;
+    }
+    return false;
+  }
+
+  // ---------- what the renamer has learned from your fixes ----------
+  // When you type or Claude reads a number, the renamer finds that number among the words it read on the page
+  // and remembers where it sits on that vendor's form (the vendor is recognised by the words across the top of
+  // the page). Next time a page from that vendor has no printed MFN, it zooms into that spot and reads it there.
+  // Saved in the toolkit's shared storage, so it keeps working across days and for anyone using the toolkit.
+  let spots=[], db=null;
+  function pageWords(data,W,H){
+    const out=[];
+    (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>(l.words||[]).forEach(w=>{
+      const t=String(w.text||"").trim(); if(!t||!(/\d/.test(t)||/[A-Za-z]{3,}/.test(t))) return;
+      out.push({t,b:[w.bbox.x0/W,w.bbox.y0/H,w.bbox.x1/W,w.bbox.y1/H].map(v=>Math.round(v*1000)/1000)});
+    })))); return out.slice(0,500);
+  }
+  // The vendor's "signature": the distinct words across the top quarter of the page (logo text, form title).
+  const signature=ws=>[...new Set(ws.filter(w=>w.b[3]<0.25&&/^[A-Za-z]{4,}$/.test(w.t)).map(w=>w.t.toLowerCase()))].slice(0,14);
+  function sigMatch(a,b){ if(!a.length||!b.length) return 0; const B=new Set(b); return a.filter(x=>B.has(x)).length/Math.min(a.length,b.length); }
+  function bestSpot(sig){ let best=null,score=0; for(const s of spots){ const m=sigMatch(sig,s.sig); if(m>=0.5&&m>score){best=s;score=m} } return best; }
+  // Digits-only edit distance, to find the OCR word that was the number you typed ("313 3460" vs 3100005).
+  function dist(a,b){ const d=Array.from({length:a.length+1},(_,i)=>[i]); for(let j=1;j<=b.length;j++) d[0][j]=j;
+    for(let i=1;i<=a.length;i++) for(let j=1;j<=b.length;j++) d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1)); return d[a.length][b.length]; }
+  const digitsOf=t=>t.replace(/[Oo]/g,"0").replace(/[Il|]/g,"1").replace(/S/g,"5").replace(/B/g,"8").replace(/\D/g,"");
+  function findNumber(ws,n){
+    let best=null, bd=4;
+    for(let i=0;i<ws.length;i++) for(const k of [1,2,3]){
+      const grp=ws.slice(i,i+k); if(grp.length<k) break;
+      if(k>1&&grp.some((w,j)=>j&&Math.abs(w.b[1]-grp[0].b[1])>0.02)) break;   // same line only
+      const d=digitsOf(grp.map(w=>w.t).join("")); if(d.length<5||d.length>9) continue;
+      const e=dist(d,n); if(e<bd){ bd=e; best=[Math.min(...grp.map(w=>w.b[0])),Math.min(...grp.map(w=>w.b[1])),Math.max(...grp.map(w=>w.b[2])),Math.max(...grp.map(w=>w.b[3]))]; }
+    }
+    return best;
+  }
+  async function learnSpot(r,n){
+    if(!/^\d{6,8}$/.test(n)) return;
+    for(const i of r.pages){
+      const p=r.src.pages[i]; if(!p||!p.words||!p.sig||p.sig.length<2) continue;
+      const box=findNumber(p.words,n); if(!box) continue;
+      spots=spots.filter(s=>sigMatch(s.sig,p.sig)<0.8);
+      spots.unshift({sig:p.sig,box,at:Date.now()}); spots=spots.slice(0,300);
+      if(db){ try{ await db.doc("learn/renamer").set({spots}); toast("Got it. Next time this form comes through, it'll look there first"); }catch(e){} }
+      render(); return;
+    }
+  }
+  // Read just the remembered spot, zoomed in, from the page as scanned (not the highlight-washed copy,
+  // which also fades blue pen).
+  async function readSpot(ocr,upOrig,box){
+    const pad=0.035, W=upOrig.width, H=upOrig.height;
+    const x0=Math.max(0,(box[0]-pad)*W), y0=Math.max(0,(box[1]-pad)*H), x1=Math.min(W,(box[2]+pad)*W), y1=Math.min(H,(box[3]+pad)*H);
+    const k=2, c=canvasOf(Math.round((x1-x0)*k),Math.round((y1-y0)*k)), x=c.getContext("2d");
+    x.drawImage(upOrig,x0,y0,x1-x0,y1-y0,0,0,c.width,c.height);
+    const im=x.getImageData(0,0,c.width,c.height), d=im.data;
+    for(let i=0;i<d.length;i+=4){ const v=0.3*d[i]+0.59*d[i+1]+0.11*d[i+2]; d[i]=d[i+1]=d[i+2]=v; } x.putImageData(im,0,0);
+    const t=(await ocr.stamp(c)).data.text||"";
+    return tallyMatches(fixOcr(t),PO_RE)[0]||looseGuesses(t)[0]||null;
+  }
+
+  // Read one page: its text, MFN, PO numbers, RECEIVED stamp, hand-written mark and a thumbnail.
+  async function readPage(src,pdf,i){
+    const page=await pdf.getPage(i+1);
+    let text=await pageTextLayer(page);
+    const info={mfn:null,po:[],guess:[],manual:false,stamped:false,marked:false,ocr:false,thumb:"",words:null,sig:null,spot:null};
+    const scan=await isScan(page)||text.replace(/\s/g,"").length<200;
+    const vp0=page.getViewport({scale:1});
+    const vp=page.getViewport({scale:scan&&!src.ocrFailed?Math.min(3,2600/Math.max(vp0.width,vp0.height)):Math.min(1,320/Math.max(vp0.width,vp0.height))});
+    const c=canvasOf(Math.ceil(vp.width),Math.ceil(vp.height)), ctx=c.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    if(scan&&!src.ocrFailed){
+      try{
+        const ocr=await ocrSetup(), ppi=vp.scale*72;
+        const orig=canvasOf(c.width,c.height); orig.getContext("2d").drawImage(c,0,0);
+        const stamp=redInk(c,ppi);
+        const angle=await uprightAngle(ocr,orig);
+        info.thumb=scaled(rotated(orig,angle),320).toDataURL("image/jpeg",0.72);
+        liftHighlights(c);
+        const up=rotated(c,angle);
+        const {data}=await ocr.read(up,{text:true,blocks:true});
+        text+="\n"+fixOcr(data.text||""); info.ocr=true;
+        info.words=pageWords(data,up.width,up.height); info.sig=signature(info.words);
+        // Nothing found: read again treating the page as scattered bits of text, which copes better
+        // with numbers squeezed into table cells and next to dark header bars.
+        MFN_RE.lastIndex=0;
+        if(!MFN_RE.test(text)){ const r2=await ocr.stamp(up); text+="\n"+fixOcr(r2.data.text||""); }
+        info.marked=bottomMark(rotated(orig,angle),ppi);
+        MFN_RE.lastIndex=0;
+        if(!MFN_RE.test(text)){ const sp=bestSpot(info.sig); if(sp){ try{ info.spot=await readSpot(ocr,rotated(orig,angle),sp.box); }catch(e){} } }
+        if(stamp) for(const a of [angle,0,90,270,180].filter((v,k,arr)=>arr.indexOf(v)===k)){
+          const r=await ocr.stamp(rotated(stamp,a)); if(STAMP_RE.test(r.data.text||"")){info.stamped=true;break}
+        }
+      }catch(e){ src.ocrFailed=true }
+    }
+    if(!info.thumb) info.thumb=scaled(c,320).toDataURL("image/jpeg",0.72);
+    info.mfn=tallyMatches(text,MFN_RE)[0]||null;
+    info.po=tallyMatches(text,PO_RE);
+    info.guess=looseGuesses(text);
+    // Hand-filled new-shipment forms (settings: renamer.newFileMatch) are always one page each.
+    info.manual=!!NEW_FILE_RE&&NEW_FILE_RE.test(text);   // a form that always starts a new shipment (from the settings file)
+    page.cleanup();
+    return info;
+  }
+
+  // Where new files start: page 1, any page with the RECEIVED stamp or a hand-written mark, and any page
+  // whose MFN differs from the file it would join. Pages with none of these (page 2 of a packing slip)
+  // stay with the page before.
+  // Best guesses for hand-written or badly scanned numbers: anything that could be a 7-digit 31x PO once
+  // look-alike letters are swapped for digits and stray spaces are dropped ("3l8 3o89" -> 3100006).
+  function looseGuesses(text){
+    const out=new Map(), re=/(?<![0-9A-Za-z])3\s?[1Il|](?:\s?[0-9OoIlSB|]){5}(?![0-9])/g; let m;
+    while((m=re.exec(text))){
+      const n=m[0].replace(/\s/g,"").replace(/[Oo]/g,"0").replace(/[Il|]/g,"1").replace(/S/g,"5").replace(/B/g,"8");
+      if(/^31\d{5}$/.test(n)) out.set(n,(out.get(n)||0)+1);
+    }
+    return [...out.entries()].sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+  }
+  function autoStarts(pages){
+    // Every page is checked on its own: a page with an MFN always starts a new file unless the file it
+    // follows already has that same MFN (a 2-page packing slip repeating its header).
+    // A page with no MFN but its own PO number that differs from the file it follows also starts a new file,
+    // and so does every hand-filled new-shipment form.
+    const num=p=>p.mfn||(p.po&&p.po[0])||(p.guess&&p.guess[0])||null;
+    const starts=[0]; let cur=pages[0]&&pages[0].mfn, curNum=pages[0]&&num(pages[0]);
+    for(let i=1;i<pages.length;i++){
+      const p=pages[i], n=num(p);
+      const fresh=p.stamped||p.marked||p.manual||(p.mfn&&p.mfn!==cur)||(!p.mfn&&n&&n!==curNum&&n!==cur);
+      if(fresh){starts.push(i);cur=p.mfn;curNum=n}
+      else if(!curNum&&n) curNum=n;
+    }
+    return starts;
+  }
+
+  const MAX_PAGES=300;
+  async function analyze(src){
+    let pdf=null;
+    try{
+      pdf=await pdfjsLib.getDocument({data:new Uint8Array(await src.file.arrayBuffer())}).promise;
+      const n=Math.min(pdf.numPages,MAX_PAGES); src.total=n; src.done=0; src.pages=new Array(n);
+      render();
+      let next=0;
+      const lane=async()=>{ while(next<n){ const i=next++; src.pages[i]=await readPage(src,pdf,i); src.done++; render(); } };
+      await Promise.all([lane(),lane()]);
+      src.auto=autoStarts(src.pages); src.starts=[...src.auto];
+      src.tooLong=pdf.numPages>MAX_PAGES;
+      src.status="done";
+      if(src.starts.length>1) toast(`Split ${src.name} into ${rowsOf(src).length} files`);
+    }catch(e){
+      src.status="error"; src.error="Couldn't open this PDF"+(e&&e.name==="PasswordException"?" (password protected)":"");
+    }finally{ try{pdf&&pdf.destroy()}catch(e){} }
+    render();
+  }
+
+  // ---------- files made from a PDF ----------
+  function segmentsOf(src){
+    const st=[...src.starts].sort((a,b)=>a-b), out=[];
+    st.forEach((s,k)=>{ const e=k+1<st.length?st[k+1]:src.pages.length; const pages=[]; for(let i=s;i<e;i++) pages.push(i); out.push({start:s,pages}); });
+    return out;
+  }
+  function segInfo(src,seg){
+    const counts=new Map(), po=new Set(), guess=[]; let ocr=false; const spot=seg.pages.map(i=>src.pages[i].spot).find(Boolean);
+    seg.pages.forEach(i=>{ const p=src.pages[i]; if(p.mfn) counts.set(p.mfn,(counts.get(p.mfn)||0)+1); p.po.forEach(x=>po.add(x)); (p.guess||[]).forEach(x=>{ if(!guess.includes(x)) guess.push(x) }); if(p.ocr) ocr=true; });
+    const mfns=[...counts.entries()].sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+    const first=src.pages[seg.start];
+    const why=src.starts.length<2||seg.start===0?"":first.stamped?"Started at the RECEIVED stamp":first.marked?"Started at the hand-written mark":first.manual?"New-shipment form":src.auto.includes(seg.start)?"Started where a new MFN appears":"Split by hand";
+    const typed=src.nums.get(seg.start);
+    let number="", status="bad", note="", guessed=false;
+    if(typed!=null){ const cn=src.claude.get(seg.start); number=typed; status=!typed?"bad":cn&&/please check/.test(cn)?"warn":"ok"; note=typed?(cn||"Number typed in"):"No number yet. Type the number in"; }
+    else if(mfns.length){
+      number=mfns[0]; const odd=ocr&&!/^31\d{5}$/.test(number);
+      status=odd||mfns.length>1?"warn":"ok";
+      note=`Found MFN-${number}`+(odd?". Read from a scan, please check the digits":"")+(mfns.length>1?`. Also saw ${mfns.slice(1).map(m=>"MFN-"+m).join(", ")}`:"");
+    } else if(spot){
+      number=spot; status=/^31\d{5}$/.test(spot)?"ok":"warn";
+      note=`Read ${spot} from the spot you fixed on this form before`+(status==="warn"?", please check":"");
+    } else {
+      const list=[...po];
+      if(list.length===1){number=list[0];status="warn";note=`No MFN, used PO number ${list[0]}`}
+      else if(list.length>1){number=list[0];status="warn";guessed=true;note=`Best guess ${list[0]}, please check. Also saw ${list.slice(1,4).join(", ")}`}
+      else if(guess.length){number=guess[0];status="warn";guessed=true;note=`Best guess ${guess[0]} from a hard-to-read number, please check`+(guess.length>1?`. Also possible: ${guess.slice(1,3).join(", ")}`:"")}
+      else note=src.ocrFailed?"The image reader couldn't start here. Type the number in":"Couldn't find any number on this page. Type the number in";
+    }
+    return {number,status,guessed,note:why?`${why}. ${note}`:note};
+  }
+  // One row per finished file: each marked shipment stays its own file, even when two share a number
+  // (the second is saved as "3100007 (2).pdf").
+  function rowsOf(src){
+    if(src.status!=="done") return [];
+    return segmentsOf(src).filter(seg=>!src.removed.has(seg.start)).map(seg=>({
+      key:`${src.id}:${seg.start}`, src, starts:[seg.start], pages:seg.pages,
+      whole:seg.pages.length===src.pages.length, ...segInfo(src,seg)
+    }));
+  }
+  function pageLabel(idx){
+    const out=[]; let s=idx[0], prev=idx[0];
+    for(const i of idx.slice(1).concat([null])){ if(i!==null&&i===prev+1){prev=i;continue} out.push(s===prev?`${s+1}`:`${s+1}–${prev+1}`); s=prev=i; }
+    return (idx.length>1?"pages ":"page ")+out.join(", ");
+  }
+  function allRows(){ return sources.flatMap(rowsOf); }
+  function finalNames(rows){
+    const used=new Map(), out=new Map();
+    for(const r of rows){ if(!r.number){out.set(r.key,null);continue} const c=(used.get(r.number)||0)+1; used.set(r.number,c); out.set(r.key,c===1?`${r.number}.pdf`:`${r.number} (${c}).pdf`); }
+    return out;
+  }
+  const blobCache=new Map();
+  async function blobOf(r){
+    if(r.whole) return r.src.file;
+    const k=r.src.id+"|"+r.pages.join(",");
+    if(!blobCache.has(k)){
+      if(!r.src.lib) r.src.lib=await PDFLib.PDFDocument.load(await r.src.file.arrayBuffer(),{ignoreEncryption:true});
+      const out=await PDFLib.PDFDocument.create();
+      (await out.copyPages(r.src.lib,r.pages)).forEach(p=>out.addPage(p));
+      blobCache.set(k,new Blob([await out.save()],{type:"application/pdf"}));
+    }
+    return blobCache.get(k);
+  }
+
+  // ---------- saving ----------
+  async function saveRows(subset){
+    const names=finalNames(allRows()), ready=subset.filter(r=>names.get(r.key));
+    if(!ready.length) return;
+    if(!downloads){toast("Downloads aren't available in this view");return}
+    try{
+      zipBtn.disabled=true; zipBtn.textContent="Preparing…";
+      if(ready.length===1) await downloads.save({filename:names.get(ready[0].key),data:await blobOf(ready[0])});
+      else{
+        const zip=new JSZip();
+        for(const r of ready) zip.file(names.get(r.key),await blobOf(r));
+        const blob=await zip.generateAsync({type:"blob"});
+        const d=new Date(), day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+        await downloads.save({filename:`renamed-pdfs-${day}.zip`,data:blob});
+      }
+      const skipped=subset.length-ready.length;
+      toast(`Saved ${ready.length===1?names.get(ready[0].key):ready.length+" renamed files"}`+(skipped?`. ${skipped} still need${skipped===1?"s":""} a number`:""));
+    }catch(e){ if(e&&e.code==="rate_limited") toast("A save is already open"); else if(e&&e.code!=="declined") toast("Couldn't save the files") }
+    zipBtn.textContent="Download all (.zip)"; render();
+  }
+  zipBtn.onclick=()=>saveRows(allRows());
+  let autoSave=true;
+  try{ autoSave=localStorage.getItem("mfn-autosave")!=="off" }catch(e){}
+  const autoBox=$("#autoSave"); autoBox.checked=autoSave;
+  autoBox.addEventListener("change",()=>{autoSave=autoBox.checked; try{localStorage.setItem("mfn-autosave",autoSave?"on":"off")}catch(e){}});
+  clearBtn.onclick=()=>{sources=[];blobCache.clear();render()};
+
+  // ---------- adding files ----------
+  let queue=Promise.resolve();
+  function addFiles(files){
+    const pdfs=[...files].filter(f=>f.type==="application/pdf"||/\.pdf$/i.test(f.name));
+    if(!pdfs.length){toast("Only PDF files can be renamed");return}
+    const fresh=pdfs.map(f=>({id:nextId++,file:f,name:f.name,status:"waiting",pages:[],starts:[0],nums:new Map(),removed:new Set(),claude:new Map(),auto:[0],total:0,done:0}));
+    sources=sources.concat(fresh); render();
+    queue=queue.then(async()=>{
+      for(const s of fresh){ if(sources.includes(s)){ s.status="busy"; render(); await analyze(s); } }
+      const mine=()=>fresh.filter(s=>sources.includes(s)).flatMap(rowsOf);
+      await readWithClaude(mine().filter(needsClaude));
+      if(autoSave) await saveRows(mine());
+    });
+  }
+  drop.addEventListener("click",e=>{ if(e.target!==picker){ e.preventDefault(); picker.click(); }});
+  drop.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();picker.click()}});
+  picker.addEventListener("change",()=>{addFiles(picker.files);picker.value=""});
+  ["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over")}));
+  ["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
+  drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+  document.addEventListener("dragover",e=>e.preventDefault());
+  document.addEventListener("drop",e=>{e.preventDefault(); if(!drop.contains(e.target)&&!sheet.contains(e.target)) addFiles(e.dataTransfer.files)});
+
+  // ---------- Claude for flagged files ----------
+  const PROMPT=`These images are the pages of one warehouse shipping document (bill of lading, packing slip, invoice or receiving form).
+Find the MFN number: the text "MFN-" followed by digits, e.g. MFN-3100002. It may be printed, highlighted, stamped or handwritten, anywhere on the page.
+If there is no MFN- number, look for the PO number instead: a 7-digit number starting with 31 (e.g. 3100001), often handwritten in a "PO Number" field.
+On hand-filled supply receiving sheets the PO number is hand-written in the "PO Number" box at the top right.
+Reply with only JSON: {"number": "3100002" or null, "source": "mfn" | "po" | "none", "confidence": "high" | "low"}. The number is digits only, without "MFN-".`;
+  async function pageImages(src,pages){
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await src.file.arrayBuffer())}).promise, out=[];
+    for(const i of pages){
+      const page=await pdf.getPage(i+1), vp0=page.getViewport({scale:1}), vp=page.getViewport({scale:Math.min(2.2,1700/Math.max(vp0.width,vp0.height))});
+      const c=canvasOf(Math.ceil(vp.width),Math.ceil(vp.height)), ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+      await page.render({canvasContext:ctx,viewport:vp}).promise;
+      out.push(await new Promise(r=>c.toBlob(r,"image/jpeg",0.88)));
+    }
+    pdf.destroy(); return out;
+  }
+  // Files with no number, or only a best guess (usually hand-written), go to Claude to read from the page image.
+  const needsClaude=r=>!r.number||r.guessed;
+  async function readWithClaude(list){
+    if(!sample||!canImages||asking||!list.length) return;
+    asking=true; render();
+    for(const r of list){
+      if(!sample) break;
+      try{
+        const imgs=await pageImages(r.src,r.pages.slice(0,Math.min(3,(canImages&&canImages.maxCount)||3)));
+        const ans=await sample.json(PROMPT,{images:imgs});
+        const n=ans&&ans.number?normNum(ans.number):"";
+        if(n.length>=6&&n.length<=8){
+          learnSpot(r,n);
+          r.starts.forEach(s=>{ r.src.nums.set(s,n); r.src.claude.set(s,(ans.source==="mfn"?`Claude read MFN-${n}`:`Claude read the PO number ${n}`)+(ans.confidence!=="high"?", not fully sure, please check":"")); });
+        }
+      }catch(e){
+        const c=e&&e.code;
+        if(["not_granted","sampling_disabled","images_unavailable","capability_disabled"].includes(c)){ sample=null; toast("Claude isn't available here. Type the numbers in"); }
+        else if(c==="rate_limited"){ toast("Claude is busy. Try again in a minute"); break; }
+      }
+      render();
+    }
+    asking=false; render();
+  }
+  askBtn.onclick=()=>readWithClaude(allRows().filter(needsClaude));
+
+  // ---------- list ----------
+  const PILL={ok:["ok","MFN found"],warn:["warn","Check this"],bad:["bad","Needs a number"],busy:["busy","Reading"]};
+  function rowHtml(r,names){
+    const [cls,label]=PILL[r.status], dup=names&&names.get(r.key)&&/\(\d+\)\.pdf$/.test(names.get(r.key));
+    const multi=r.src&&r.src.pages.length>1;
+    const title=r.example?r.orig:(r.whole?r.src.name:`${r.src.name} · ${pageLabel(r.pages)}`);
+    return `<div class="row${r.example?" example":""}" role="row" data-key="${r.key}">
+      <div class="orig"><div class="fn">${esc(title)}${r.example?'<span class="tag">Example</span>':""}</div><div class="note">${esc(r.note)}${dup?". Same number as another file, so a (2) was added":""}</div></div>
+      <div class="status"><span class="pill ${cls}">${label}</span></div>
+      <div class="newname"><input class="num${!r.number?" empty":""}" id="num-${r.key.replace(":","-")}" inputmode="numeric" aria-label="New file name for ${esc(title)}" value="${esc(r.number)}" placeholder="type number" ${r.example?"disabled":""}><span class="ext">.pdf</span></div>
+      <div class="rowbtns">
+        ${multi?`<button class="btn icon pagesbtn" data-act="pages" title="Split or join pages">Pages</button>`:""}
+        <button class="btn icon" data-act="save" title="Download this file" aria-label="Download this file" ${r.example||!r.number?"disabled":""}>⤓</button>
+        <button class="btn icon" data-act="remove" title="Remove from list" aria-label="Remove from list" ${r.example?"disabled":""}>✕</button>
+      </div>
+    </div>`;
+  }
+  function busyHtml(s){
+    const note=s.status==="waiting"?"Waiting…":s.total>1?`Reading page ${s.done} of ${s.total}…`:"Reading…";
+    return `<div class="row" role="row"><div class="orig"><div class="fn">${esc(s.name)}</div><div class="note">${note}</div></div>
+      <div class="status"><span class="pill busy">Reading</span></div><div></div><div class="rowbtns"></div></div>`;
+  }
+  function errorHtml(s){
+    return `<div class="row" role="row" data-src="${s.id}"><div class="orig"><div class="fn">${esc(s.name)}</div><div class="note">${esc(s.error)}</div></div>
+      <div class="status"><span class="pill bad">Can't read</span></div><div></div><div class="rowbtns"><button class="btn icon" data-act="drop" aria-label="Remove from list">✕</button></div></div>`;
+  }
+  function render(){
+    const rows=allRows(), names=finalNames(rows);
+    let html=`<div class="head" role="row"><div>Original file</div><div>Status</div><div>New name</div><div></div></div>`;
+    if(!sources.length){
+      EXAMPLES.forEach((e,i)=>{html+=rowHtml({...e,key:"ex"+i,example:true},null)});
+      html+=`<div class="empty-note">These are example rows showing what you'll see. Add your PDFs above to replace them.</div>`;
+    } else for(const s of sources){
+      if(s.status==="done") rowsOf(s).forEach(r=>{html+=rowHtml(r,names)});
+      else if(s.status==="error") html+=errorHtml(s);
+      else html+=busyHtml(s);
+    }
+    const focus=document.activeElement&&document.activeElement.id, pos=focus&&document.activeElement.selectionStart;
+    listEl.innerHTML=html;
+    if(focus){const el=document.getElementById(focus); if(el){el.focus(); try{el.setSelectionRange(pos,pos)}catch(e){}}}
+
+    const c={ok:0,warn:0,bad:0}; rows.forEach(r=>c[r.status]++);
+    const busy=sources.filter(s=>s.status==="busy"||s.status==="waiting").length;
+    tallyEl.innerHTML=sources.length
+      ? `<span><b>${rows.length}</b> files</span><span><b>${c.ok}</b> MFN found</span><span><b>${c.warn}</b> to check</span><span><b>${c.bad}</b> need a number</span>${busy?`<span><b>${busy}</b> reading</span>`:""}`
+      : `<span>No files yet</span>`;
+    if(spots.length) tallyEl.innerHTML+=`<span>Remembers <b>${spots.length}</b> form${spots.length===1?"":"s"}</span>`;
+    zipBtn.disabled=!rows.some(r=>r.number)||busy>0;
+    clearBtn.disabled=!sources.length;
+    const flagged=rows.filter(needsClaude).length;
+    askBtn.hidden=!(sample&&canImages&&flagged);
+    askBtn.disabled=asking||busy>0;
+    askBtn.textContent=asking?"Claude is reading hand-written numbers…":`Have Claude re-read ${flagged}`;
+    if(editing) renderPages();
+  }
+  function rowByKey(k){ return allRows().find(r=>r.key===k); }
+  // A finished number typed into a box (you've left the box) teaches the renamer where that form keeps it.
+  listEl.addEventListener("change",e=>{
+    if(!e.target.classList.contains("num")) return;
+    const r=rowByKey(e.target.closest(".row").dataset.key); if(r) learnSpot(r,e.target.value.replace(/\D/g,""));
+  });
+  listEl.addEventListener("input",e=>{
+    if(!e.target.classList.contains("num")) return;
+    const r=rowByKey(e.target.closest(".row").dataset.key); if(!r) return;
+    const v=e.target.value.replace(/\D/g,""); if(v!==e.target.value) e.target.value=v;
+    r.starts.forEach(s=>{ r.src.nums.set(s,v); r.src.claude.delete(s); });
+    e.target.closest(".row").querySelector('[data-act="save"]').disabled=!v;
+    e.target.classList.toggle("empty",!v);
+    clearTimeout(listEl.t); listEl.t=setTimeout(render,700);
+  });
+  listEl.addEventListener("click",async e=>{
+    const b=e.target.closest("button[data-act]"); if(!b) return;
+    const rowEl=b.closest(".row");
+    if(b.dataset.act==="drop"){ sources=sources.filter(s=>String(s.id)!==rowEl.dataset.src); render(); return; }
+    const r=rowByKey(rowEl.dataset.key); if(!r) return;
+    if(b.dataset.act==="remove"){
+      if(r.whole||r.src.pages.length===1) sources=sources.filter(s=>s!==r.src);
+      else r.starts.forEach(s=>r.src.removed.add(s));
+      render();
+    } else if(b.dataset.act==="pages"){ openPages(r.src,r.pages[0]); }
+    else { const names=finalNames(allRows()), name=names.get(r.key); if(!name) return;
+      if(!downloads){toast("Downloads aren't available in this view");return}
+      try{ await downloads.save({filename:name,data:await blobOf(r)}); toast(`Saved ${name}`) }
+      catch(err){ if(err&&err.code!=="declined") toast(err&&err.code==="rate_limited"?"A save is already open":"Couldn't save that file") }
+    }
+  });
+
+  // ---------- page editor ----------
+  function openPages(src,focusPage){
+    editing=src; sheet.hidden=false; renderPages();
+    const el=pagesEl.querySelector(`[data-i="${focusPage}"]`); if(el) el.scrollIntoView({block:"center"});
+    $("#sheetDone").focus();
+  }
+  function closePages(){ editing=null; sheet.hidden=true; render(); }
+  $("#sheetDone").onclick=closePages;
+  sheet.addEventListener("click",e=>{ if(e.target===sheet) closePages(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&editing) closePages(); });
+  function renderPages(){
+    const src=editing; if(!src||src.status!=="done"){closePages();return}
+    $("#sheetTitle").textContent=`${src.name} · ${src.pages.length} pages`;
+    const segs=segmentsOf(src); let html="";
+    segs.forEach((seg,k)=>{
+      const inf=segInfo(src,seg), gone=src.removed.has(seg.start);
+      seg.pages.forEach(i=>{
+        const p=src.pages[i], first=i===seg.start;
+        html+=`<div class="pg${first?" first":""}${k%2?" alt":""}${gone?" gone":""}" data-i="${i}">
+          <div class="filelbl">${first?`File ${k+1} · ${inf.number?esc(inf.number)+".pdf":"needs a number"}${gone?" (removed)":""}`:""}</div>
+          ${p.thumb?`<img src="${p.thumb}" alt="Page ${i+1}">`:`<div class="ph"></div>`}
+          <div class="lbl"><span>Page <b>${i+1}</b></span></div>
+          <div class="chips">${p.mfn?`<span class="chip mfn">MFN-${esc(p.mfn)}</span>`:""}${p.stamped?`<span class="chip stamp">Stamp</span>`:""}${p.marked?`<span class="chip mark">Mark</span>`:""}</div>
+          <button class="split" data-i="${i}" aria-pressed="${first}" ${i===0?"disabled":""}>${i===0?"First page":first?"New file ✓":"New file"}</button>
+        </div>`;
+      });
+    });
+    pagesEl.innerHTML=html;
+  }
+  pagesEl.addEventListener("click",e=>{
+    const b=e.target.closest("button.split"); if(!b||!editing) return;
+    const i=+b.dataset.i, src=editing; if(i===0) return;
+    const at=src.starts.indexOf(i);
+    if(at>=0){ src.starts.splice(at,1); src.nums.delete(i); src.removed.delete(i); }
+    else { src.starts.push(i); src.starts.sort((a,b)=>a-b); }
+    render();
+    const nb=pagesEl.querySelector(`button.split[data-i="${i}"]`); if(nb) nb.focus();
+  });
+
+  render();
+
+  // ---------- capabilities ----------
+  if(window.toolkitUse){
+    toolkitUse("downloads").then(d=>{downloads=d}).catch(()=>{});
+    toolkitUse("db").then(d=>{ if(!d) return; db=d;
+      db.doc("learn/renamer").onSnapshot(s=>{ spots=(s.exists&&s.data().spots)||[]; render(); },()=>{});
+    }).catch(()=>{});
+    toolkitUse("sample").then(async s=>{
+      if(!s) return; sample=s;
+      try{ const l=await s.limits(); canImages=l&&l.images?l.images:false; }catch(e){ canImages=false }
+      render();
+    }).catch(()=>{});
+  }
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,1574 @@
+<!doctype html><html><head><script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><!--toolkit-theme--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"><style>/* Toolkit theme. The :not(#id) raises this above the page's own light and dark settings. */
+html:root:not(#toolkit-theme){--bg:#000000;--panel:#0a0d0a;--ink:#eef2ee;--muted:#94a294;--line:#1a231a;--accent:#00c800;--display:"Inter",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono","Courier New",monospace;color-scheme:dark;--accent-ink:#29e029;--accent-soft:#0a1f0a;--good:#3dba78;--good-soft:#0a1f14;--warn:#e8b84b;--warn-soft:#1a1205;--bad:#f06060;--bad-soft:#1a0808;--info:#7fa8d8;--info-soft:#0b1320;}
+body{background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-stretch:normal!important;letter-spacing:-.01em}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#242f24;border-radius:3px}::-webkit-scrollbar-track{background:transparent}</style><!--/toolkit-theme--><!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+</head><body>
+<title>Dock to Stock Check</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* Layout: one working column — check type, two upload bays, day range, day + dock scope, opportunity summary, item table, then the saved daily log. Dock-floor yellow marks the working controls. */
+:root{
+  --bg:#f3f4f2; --panel:#ffffff; --ink:#1b1f24; --muted:#5d6670; --line:#d9ddd9;
+  --accent:#e2a900; --accent-ink:#6b4f00; --accent-soft:#fdf3d2;
+  --good:#1f7a4d; --good-soft:#e2f2e9; --warn:#a85d00; --warn-soft:#fbead4;
+  --bad:#b3261e; --bad-soft:#f8e1df; --info:#3b5b8c; --info-soft:#e3eaf5;
+  --display:"Archivo",system-ui,sans-serif; --body:"Archivo",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14171b; --panel:#1c2026; --ink:#e8eaec; --muted:#9aa3ad; --line:#2e343c;
+  --accent:#f2c230; --accent-ink:#f2c230; --accent-soft:#2d2610;
+  --good:#5cc391; --good-soft:#15291f; --warn:#f0a548; --warn-soft:#2e2112;
+  --bad:#f08079; --bad-soft:#331a19; --info:#8eb0e3; --info-soft:#18233a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14171b; --panel:#1c2026; --ink:#e8eaec; --muted:#9aa3ad; --line:#2e343c;
+  --accent:#f2c230; --accent-ink:#f2c230; --accent-soft:#2d2610;
+  --good:#5cc391; --good-soft:#15291f; --warn:#f0a548; --warn-soft:#2e2112;
+  --bad:#f08079; --bad-soft:#331a19; --info:#8eb0e3; --info-soft:#18233a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1260px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;border-bottom:3px solid var(--accent);padding-bottom:14px}
+h1{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:clamp(28px,4.5vw,40px);letter-spacing:-.01em;margin:0;line-height:1;text-wrap:balance}
+h2.sec{font-family:var(--display);font-stretch:85%;font-size:22px;margin:0;font-weight:800}
+.sub{color:var(--muted);margin:6px 0 0;max-width:66ch}
+.lbl{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.dim{color:var(--muted)}
+.modebar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.bays{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.bay{background:var(--panel);border:1.5px dashed var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s,background .15s;min-width:0}
+.bay.drag{border-color:var(--accent);background:var(--accent-soft)}
+.bay.loaded{border-style:solid}
+.bay-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.bay h2{font-family:var(--display);font-stretch:85%;font-size:19px;margin:0;font-weight:700}
+.bay p{margin:0;color:var(--muted);font-size:13.5px}
+.flist{display:flex;flex-direction:column;gap:3px;font-family:var(--mono);font-size:12.5px;max-height:150px;overflow:auto;min-width:0}
+.flist span{word-break:break-all}
+.flist b{font-family:var(--body);font-weight:600;color:var(--muted);margin-right:6px}
+.baybtns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.chip.ex{background:var(--info-soft);color:var(--info)}
+.chip.ok{background:var(--good-soft);color:var(--good)}
+.chip.err{background:var(--bad-soft);color:var(--bad)}
+.chip.busy{background:var(--accent-soft);color:var(--accent-ink)}
+.btn{font:inherit;font-weight:600;font-size:13.5px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;border-radius:7px;cursor:pointer;display:inline-block}
+.btn:hover:not(:disabled){border-color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1500}
+.btn.danger{color:var(--bad)}
+.btn.small{font-size:12.5px;padding:4px 9px}
+.btn:focus-visible,input:focus-visible,select:focus-visible,.seg button:focus-visible,tr.row:focus-visible,tr.dayrow:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.notice{background:var(--info-soft);color:var(--info);border-radius:8px;padding:10px 14px;font-size:13.5px}
+.notice.warn{background:var(--warn-soft);color:var(--warn)}
+.notice.err{background:var(--bad-soft);color:var(--bad)}
+.scope{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+select,input[type=date]{font:inherit;font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);max-width:100%}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.summary .wide{grid-column:1/-1}
+@media (max-width:820px){.summary{grid-template-columns:1fr 1fr}}
+.stat{background:var(--panel);padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0;border-top:4px solid transparent}
+.stat .v{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:52px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stat .d{color:var(--muted);font-size:13px}
+.realrow{border-top-color:var(--accent2,#964dff)}.realv{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;font-size:15px}.realv .pc{font-size:20px}.prelim{font-weight:700;color:var(--warn);font-size:14px;text-transform:uppercase;letter-spacing:.04em}
+.stat.in{border-top-color:var(--accent)}
+.stat.ok{border-top-color:var(--good)} .stat.ok .v{color:var(--good)}
+.stat.bad{border-top-color:var(--bad)} .stat.bad .v{color:var(--bad)}
+.stat .eq{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.split{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--line)}
+.split i{display:block;height:100%}
+.split .p{background:var(--good)} .split .l{background:var(--bad)} .split .x{background:var(--info)}
+.st.excused{background:var(--info-soft);color:var(--info)}
+tr.s-excused td:first-child{border-left-color:var(--info)}
+.xc{font-size:12px;color:var(--info);font-weight:600;white-space:nowrap}
+.lpn.ex{border-left-color:var(--info);background:var(--info-soft)}
+.expanel{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:8px}
+.exrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px}
+.exform{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.exform input[type=text]{font:inherit;font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);min-width:0;flex:1 1 220px}
+tr.wk td{background:var(--bg);border-top:2px solid var(--line)}
+.sv{font-size:12px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.sv.ok{background:var(--good-soft);color:var(--good)} .sv.chg{background:var(--warn-soft);color:var(--warn)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);align-items:center}
+.legend b{color:var(--ink);font-variant-numeric:tabular-nums}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.savebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tools .l,.tools .r{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel);flex-wrap:wrap}
+.seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:none;color:var(--muted);padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+input[type=search]{font:inherit;font-size:14px;padding:7px 11px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);width:220px;max-width:100%}
+label.tog{display:inline-flex;gap:7px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer}
+.tblwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+table.items{min-width:820px}
+/* The item list shows what a reader needs at a glance; carried in, received and next-morning qty stay in the
+   summary above and in each item's dropdown. */
+table.items>thead>tr>th:nth-child(3),table.items>thead>tr>th:nth-child(4),table.items>thead>tr>th:nth-child(8),
+table.items>tbody>tr.row>td:nth-child(3),table.items>tbody>tr.row>td:nth-child(4),table.items>tbody>tr.row>td:nth-child(8),
+table.items>tfoot>tr>td:nth-child(3),table.items>tfoot>tr>td:nth-child(4),table.items>tfoot>tr>td:nth-child(8){display:none}
+details.settings{position:relative}
+details.settings summary,details.howto summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--muted);list-style:none;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+details.settings summary::before,details.howto summary::before{content:"▸";font-size:11px}
+details[open].settings summary::before,details[open].howto summary::before{content:"▾"}
+details.settings .setbox{position:absolute;right:0;top:calc(100% + 6px);z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:280px}
+details.howto{border-top:1px solid var(--line);padding-top:18px;margin-top:8px}
+details.howto summary{font-size:15px;color:var(--ink)}
+details.howto ol{margin:14px 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:88ch;font-size:14.5px}
+.weekbtns{display:inline-flex;gap:6px;margin-left:10px}
+.pc{display:inline-block;font-weight:800;font-family:var(--mono);padding:1px 7px;border-radius:5px;font-variant-numeric:tabular-nums}
+.pc.g{color:#04210a;background:#3dba78}
+.pc.y{color:#2a2100;background:#f2d33a}
+.pc.o{color:#2a1300;background:#ff9a3c}
+.pc.r{color:#2a0606;background:#f06060}
+.status{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:14px;padding:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.status .what{font-weight:700;font-size:15px}
+details.notes summary{cursor:pointer;color:var(--muted);font-size:13.5px;font-weight:600}
+details.notes{display:flex;flex-direction:column;gap:6px}
+details.notes .notice{margin-top:6px}
+details.settings .setbox{width:min(620px,92vw)}
+details.settings .scope{border:0;padding:0;background:none}
+.settings[open]{border-left:0!important;padding-left:0!important}
+.notice.watch{border-left:4px solid var(--accent2,#964dff)}.watcht{display:inline-block;margin-top:3px;font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:1px 6px;border-radius:4px;background:rgba(150,77,255,.18);color:#c9a8ff}
+.watchbox{display:grid;gap:8px;font-size:14px}.watchbox input[type=text]{width:100%;max-width:520px}
+.looset{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.06em;color:#1a1200;background:var(--warn);border-radius:4px;padding:1px 5px;margin-top:3px}
+.loosebox{background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.loosebox input.loosen{width:64px;font:600 14px var(--mono);padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+table.hist{min-width:820px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:bottom;background:var(--panel)}
+th.n,td.n{text-align:right}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tfoot td{font-weight:700;border-bottom:0;border-top:2px solid var(--line)}
+tr.row,tr.dayrow{cursor:pointer}
+tr.row:hover td,tr.dayrow:hover td{background:var(--bg)}
+tr.row td:first-child{border-left:4px solid transparent}
+tr.s-none td:first-child{border-left-color:var(--bad)}
+tr.s-partial td:first-child{border-left-color:var(--warn)}
+tr.s-done td:first-child{border-left-color:var(--good)}
+tr.s-other td:first-child{border-left-color:var(--info)}
+.desc{color:var(--muted);max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st{font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap}
+.st.none{background:var(--bad-soft);color:var(--bad)}
+.st.partial{background:var(--warn-soft);color:var(--warn)}
+.st.done{background:var(--good-soft);color:var(--good)}
+.st.other{background:var(--info-soft);color:var(--info)}
+.gd{color:var(--good);font-weight:600} .bd{color:var(--bad);font-weight:700}
+.age{font-size:12px;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--warn-soft);color:var(--warn);white-space:nowrap}
+.age.old{background:var(--bad-soft);color:var(--bad)}
+tr.detail td{background:var(--bg);padding:12px 16px 16px}
+.lpns{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px}
+.lpn{display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:12.5px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--good);border-radius:6px;padding:5px 9px}
+.lpn.nd{border-left-color:var(--bad);background:var(--bad-soft)}
+.lpn small{font-family:var(--body);color:var(--muted)}
+.dline{color:var(--muted);font-size:13px;margin-top:8px}
+.foot{color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:4px;max-width:88ch}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+tr.cur td{background:var(--accent-soft)}
+tr.cur td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+.daytitle{font-family:var(--display);font-stretch:85%;font-weight:800;font-size:20px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;z-index:5;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="lbl">Receiving · dock to stock</div>
+      <h1>Dock to Stock Check</h1>
+      <p class="sub">What share of the pallets on the receiving dock were put away within 24 hours, day by day. Load the dock log and the morning inventory reports below; how it works is at the bottom of the page.</p>
+    </div>
+    <button class="btn" id="copyBtn" type="button">Copy results for Excel</button>
+  </header>
+
+  <section class="status" id="statusLine"></section>
+
+  <section class="modebar" id="modebar">
+    <span class="lbl">Check type</span>
+    <div class="seg" role="group" aria-label="Check type" id="modeSeg">
+      <button type="button" data-m="next" aria-pressed="true">Next morning · 24-hour check</button>
+      <button type="button" data-m="same" aria-pressed="false">Same day · live count</button>
+    </div>
+    <span class="dim" id="modeHint" style="font-size:13px"></span>
+  </section>
+
+  <section class="bays" id="bays">
+    <div class="bay" id="bay-recv">
+      <div class="bay-top"><h2>1 · Dock transaction log</h2><span id="chip-recv"></span></div>
+      <p>One log covering the whole date range, or one log per day. Overlapping logs are fine; repeated transactions are only counted once.</p>
+      <div class="flist" id="list-recv"></div>
+      <div class="baybtns"><label class="btn primary" for="file-recv">Add files</label><button class="btn small" type="button" id="clear-recv" hidden>Clear</button><span class="lbl">or drop them here</span></div>
+      <input type="file" id="file-recv" accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt" multiple hidden>
+    </div>
+    <div class="bay" id="bay-dock">
+      <div class="bay-top"><h2 id="dockTitle">2 · Morning inventory reports</h2><span id="chip-dock"></span></div>
+      <p id="dockHelp">One report per morning. The date is read from the file name, like “Inventory Value Report for 2026-10-15”.</p>
+      <div class="flist" id="list-dock"></div>
+      <div class="baybtns"><label class="btn primary" for="file-dock">Add files</label><button class="btn small" type="button" id="clear-dock" hidden>Clear</button><span class="lbl">or drop them here</span></div>
+      <input type="file" id="file-dock" accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt" multiple hidden>
+    </div>
+  </section>
+
+
+  <section id="rangeSec" hidden style="display:flex;flex-direction:column;gap:12px">
+    <div class="tools">
+      <h2 class="sec">Days in these files</h2>
+      <div class="savebar" id="rangeSave"></div>
+    </div>
+    <div class="tblwrap">
+      <table class="hist">
+        <thead><tr>
+          <th>Day</th><th>Checked against</th><th class="n">Carried in</th><th class="n">Received</th><th class="n">Opportunities</th>
+          <th class="n">Done in 24 hrs</th><th class="n">Exceptions</th><th class="n">Not done</th><th class="n">Dock to stock</th><th class="n" title="From the log’s times instead of the 3 AM report">Real 24 hrs</th><th>Daily log</th>
+        </tr></thead>
+        <tbody id="rbody"></tbody>
+        <tfoot id="rfoot"></tfoot>
+      </table>
+    </div>
+    <span class="dim" style="font-size:13px">Click a day to see its items below.</span>
+  </section>
+
+
+  <section class="summary" id="summary"></section>
+
+  <section class="scope" id="daySec">
+    <span class="daytitle" id="dayTitle"></span>
+    <label class="lbl" for="dayInput" id="dayLbl">Day being checked</label>
+    <input type="date" id="dayInput">
+    <span id="carrySrc" class="dim" style="font-size:13px"></span>
+  </section>
+  <div id="notices" style="display:flex;flex-direction:column;gap:8px"></div>
+
+  <section class="tools">
+    <div class="l">
+      <div class="seg" role="group" aria-label="Show" id="filterSeg">
+        <button type="button" data-f="nd" aria-pressed="true">Needs attention</button>
+        <button type="button" data-f="all" aria-pressed="false">All items</button>
+        <button type="button" data-f="carry" aria-pressed="false">Carried in</button>
+        <button type="button" data-f="done" aria-pressed="false">Done</button>
+        <button type="button" data-f="exc" aria-pressed="false">Exceptions</button>
+        <button type="button" data-f="other" aria-pressed="false">Other stock</button>
+      </div>
+      <input type="search" id="q" placeholder="Search item or description">
+    </div>
+    <details class="settings">
+      <summary>Settings</summary>
+      <div class="setbox">
+        <div class="scope" id="scope" hidden></div>
+        <label class="tog"><input type="checkbox" id="loose" checked> Count loose qty (no LPN) as pallets (1 each, unless you set a count on the item)</label>
+        <label class="tog"><input type="checkbox" id="hidden" checked> Skip rows hidden by Excel filters</label>
+      </div>
+    </details>
+    <details class="settings" id="watchSec">
+      <summary id="watchSum">Watch list</summary>
+      <div class="setbox" id="watchBox"></div>
+    </details>
+  </section>
+
+  <div class="tblwrap">
+    <table class="items">
+      <thead><tr>
+        <th>Item</th><th>Description</th>
+        <th class="n">Carried<br>in</th><th class="n">Received</th><th class="n">Opportu-<br>nities</th>
+        <th class="n" id="thDone">Done in<br>24 hrs</th><th class="n" id="thLeft">Not<br>done</th>
+        <th class="n" id="thDock">Qty on dock<br>next AM</th><th>Oldest<br>on dock</th><th>Status</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="tools">
+      <h2 class="sec">Exceptions</h2>
+      <span class="dim" id="exNote" style="font-size:13px"></span>
+    </div>
+    <div class="tblwrap">
+      <table class="hist">
+        <thead><tr>
+          <th>Item</th><th>Description</th><th>Reason</th><th>Note</th><th>From</th><th>Until</th><th class="n">Counted good<br>this day</th><th></th>
+        </tr></thead>
+        <tbody id="xbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="tools">
+      <h2 class="sec">Daily log</h2>
+      <span class="dim" id="histNote" style="font-size:13px"></span>
+    </div>
+    <div class="tblwrap">
+      <table class="hist">
+        <thead><tr>
+          <th>Day</th><th class="n">Carried in</th><th class="n">Received</th><th class="n">Opportunities</th>
+          <th class="n">Done in 24 hrs</th><th class="n">Exceptions</th><th class="n">Not done</th><th class="n">Dock to stock</th><th class="n" title="From the log’s times instead of the 3 AM report">Real 24 hrs</th><th>Saved</th><th></th>
+        </tr></thead>
+        <tbody id="hbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <details class="howto">
+    <summary>How to use this</summary>
+    <ol>
+      <li><b>Pick the check type.</b> “Next morning” checks a day against the following morning’s report (the 24-hour check). “Same day” is a live count of what’s still sitting there now.</li>
+      <li><b>Add the dock transaction log</b> (box 1): one file covering several days, or one per day. Repeats are only counted once.</li>
+      <li><b>Add the morning inventory reports</b> (box 2): one per morning. The date is read from the file name, like “Inventory Value Report for 2026-10-15”.</li>
+      <li><b>Read the result.</b> The big numbers show pallets to put away (opportunities), how many were put away in time, and the dock-to-stock percentage. Click any item to see its pallets.</li>
+      <li><b>Mark exceptions</b> for pallets that are allowed to sit, like ones waiting on a vendor: open the item and pick a reason. They count as good in the percentage until they’re put away or the exception ends.</li>
+      <li><b>Press Save</b> so the day goes into the daily log. Each saved day’s leftover pallets carry into the next day. At the end of the week, use <b>Download week</b> in the daily log to keep a copy.</li>
+      <li><b>Real 24 hours</b> sits beside the report’s number. The morning report only sees the dock at about 3 AM, so pallets put away later that morning look missed. Real 24 hours uses the time each pallet actually left the dock. A day shows <b>Preliminary</b> until the next work day’s transaction history is loaded, then it finishes on its own, even for days already saved.</li>
+    </ol>
+    <div class="foot">
+      <span><b>Opportunities</b> are every pallet that needed putting away that day: the ones carried over from the day before plus the ones received.</span>
+      <span><b>Date ranges:</b> each day is checked against the next morning’s report (Friday against Monday), and its not-done pallets carry into the next day. The first morning’s report is the starting dock.</span>
+      <span><b>Carried in</b> pallets come from the day before. When there’s no earlier day, they come from the starting report or are estimated from what was on the dock (marked ≈).</span>
+      <span><b>Other stock</b> is quantity on the dock that isn’t an opportunity, like pallets staged onto the dock from the warehouse. It isn’t counted.</span>
+      <span>The reports only have quantities, so the tool can’t always tell which pallet of an item is still there. LPNs the log shows fully moving off count as done; of the rest, the oldest pallets are counted as the ones left (marked ≈).</span>
+    </div>
+  </details>
+</div>
+
+<script>
+/*CORE-START*/
+const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function num(v){if(typeof v==='number')return v;const n=parseFloat(String(v??'').replace(/[,$\s]/g,''));return isNaN(n)?0:n}
+function cleanItem(v){let s=String(v??'').trim();if(/^\d+\.0+$/.test(s))s=s.replace(/\.0+$/,'');return s}
+const MON={JAN:0,FEB:1,MAR:2,APR:3,MAY:4,JUN:5,JUL:6,AUG:7,SEP:8,OCT:9,NOV:10,DEC:11};
+function parseDate(v){
+  if(v instanceof Date)return v;
+  if(typeof v==='number'&&v>20000&&v<80000)return new Date(Math.round((v-25569)*864e5));
+  const s=String(v??'').trim();if(!s)return null;
+  let m=s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(m&&MON[m[2].toUpperCase()]!=null){const y=+m[3]<100?2000+ +m[3]:+m[3];return new Date(y,MON[m[2].toUpperCase()],+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0))}
+  const d=new Date(s);return isNaN(d)?null:d;
+}
+const dayKey=d=>d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:null;
+const keyDate=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(k,n)=>{const d=keyDate(k);d.setDate(d.getDate()+n);return dayKey(d)};
+const daysBetween=(a,b)=>Math.round((keyDate(b)-keyDate(a))/864e5);
+const isWeekend=k=>[0,6].includes(keyDate(k).getDay());
+const nextWorkday=k=>{let x=addDays(k,1);while(isWeekend(x))x=addDays(x,1);return x};
+const prevWorkday=k=>{let x=addDays(k,-1);while(isWeekend(x))x=addDays(x,-1);return x};
+/* Work days from a to b, not counting a (Mon–Fri only). */
+function workdaysBetween(a,b){let n=0;for(let x=addDays(a,1);x<=b;x=addDays(x,1))if(!isWeekend(x))n++;return n}
+function dateFromName(name){const s=String(name);let m=s.match(/(20\d{2})[-_.](\d{1,2})[-_.](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=s.match(/(\d{1,2})[-_.](\d{1,2})[-_.](20\d{2})/);return m?`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`:null}
+
+function tableFromText(text){
+  const first=text.slice(0,text.indexOf('\n')>0?text.indexOf('\n'):text.length);
+  const delim=(first.split('\t').length>=first.split(',').length)?'\t':',';
+  const out=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=c;continue}
+    if(c==='"'&&cell==='')q=true;
+    else if(c===delim){row.push(cell);cell=''}
+    else if(c==='\n'){row.push(cell.replace(/\r$/,''));out.push(row);row=[];cell=''}
+    else cell+=c;
+  }
+  if(cell!==''||row.length){row.push(cell.replace(/\r$/,''));out.push(row)}
+  return [{sheet:'',rows:out,hidden:new Set()}];
+}
+function tablesFromWorkbook(buf){
+  const wb=XLSX.read(buf,{type:'array',cellStyles:true,cellDates:true});
+  return wb.SheetNames.map(sn=>{
+    const ws=wb.Sheets[sn];if(!ws||!ws['!ref'])return null;
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:'',blankrows:true});
+    const hidden=new Set();(ws['!rows']||[]).forEach((r,i)=>{if(r&&r.hidden)hidden.add(i-range.s.r)});
+    return {sheet:sn,rows,hidden};
+  }).filter(Boolean);
+}
+function findCol(h,tests){for(const t of tests){const i=h.findIndex(x=>t(x));if(i>=0)return i}return -1}
+
+function interpret(tables,name,skipHidden){
+  const out={name,kind:null,rows:[],hiddenCount:0,sheets:[],moves:new Map(),info:new Map(),date:dateFromName(name),raw:null};
+  for(const t of tables){
+    let hi=-1;
+    for(let i=0;i<Math.min(t.rows.length,25);i++){if(t.rows[i].some(c=>['item','itemnumber','itemno','itemnum'].includes(norm(c)))){hi=i;break}}
+    if(hi<0)continue;
+    const h=t.rows[hi].map(norm);
+    const col={
+      item:findCol(h,[x=>x==='item',x=>x==='itemnumber'||x==='itemno'||x==='itemnum']),
+      type:findCol(h,[x=>x==='transactiontype']),
+      qty:findCol(h,[x=>x==='onhand',x=>x==='primaryquantity',x=>x==='transactionquantity',x=>x==='quantity',x=>x==='qty',x=>x.startsWith('quant'),x=>x.startsWith('onhand')]),
+      desc:findCol(h,[x=>x.startsWith('itemdesc'),x=>x==='description',x=>x.startsWith('desc')]),
+      lpn:findCol(h,[x=>x==='lpn',x=>x==='lpnnumber']),
+      xlpn:findCol(h,[x=>x==='transferlpn']),
+      clpn:findCol(h,[x=>x==='contentlpn']),
+      cost:findCol(h,[x=>x.startsWith('unitc'),x=>x==='cost']),
+      sub:findCol(h,[x=>x==='subinventory',x=>x==='sub']),
+      loc:findCol(h,[x=>x==='locator']),
+      date:findCol(h,[x=>x==='transactiondate']),
+      tx:findCol(h,[x=>x==='transactionid']),
+      xsub:findCol(h,[x=>x==='transfersubinventory']),
+      xloc:findCol(h,[x=>x==='transferlocator']),
+      src:findCol(h,[x=>x==='source']),
+    };
+    if(col.item<0||col.qty<0)continue;
+    const kind=col.type>=0?'log':col.lpn>=0?'detail':'summary';
+    if(out.kind&&out.kind!==kind)continue;
+    out.kind=kind;out.sheets.push(t.sheet);
+    const get=(r,k)=>col[k]>=0?r[col[k]]:'';
+    if(kind!=='log'){
+      for(let i=hi+1;i<t.rows.length;i++){
+        const r=t.rows[i];const item=cleanItem(get(r,'item'));if(!item)continue;
+        const desc=String(get(r,'desc')).trim(),cost=col.cost>=0&&get(r,'cost')!==''?num(get(r,'cost')):null;
+        if(!out.info.has(item))out.info.set(item,{desc,cost});
+        if(t.hidden.has(i)){out.hiddenCount++;if(skipHidden)continue}
+        const lpn=String(get(r,'lpn')).trim();
+        out.rows.push({item,desc,qty:num(get(r,'qty')),lpn,loose:kind==='detail'&&!lpn,cost,sub:String(get(r,'sub')).trim(),loc:String(get(r,'loc')).trim()});
+      }
+      continue;
+    }
+    /* Transaction log: keep every timestamped transaction so any day can be pulled out later.
+       Receipts are intake, Container Pack rows give the LPN pallets, every other row is a move on (+) or off (-) the dock. */
+    if(!out.raw)out.raw={receipts:[],packs:[],lines:[]};
+    const raw=out.raw;
+    for(let i=hi+1;i<t.rows.length;i++){
+      const r=t.rows[i];const item=cleanItem(get(r,'item'));if(!item)continue;
+      if(t.hidden.has(i)){out.hiddenCount++;if(skipHidden)continue}
+      const type=String(get(r,'type')).trim(),q=num(get(r,'qty')),d=parseDate(get(r,'date'));
+      const base={item,sub:String(get(r,'sub')).trim(),loc:String(get(r,'loc')).trim(),date:d,tx:String(get(r,'tx')).trim(),type,qty:q};
+      const tl=type.toLowerCase();
+      if(/receipt|receiving/.test(tl)&&!/return/.test(tl)){raw.receipts.push({...base,src:String(get(r,'src')).trim()});continue}
+      if(/pack|split|merge|consolidat/.test(tl)){raw.packs.push({...base,lpn:String(get(r,'xlpn')).trim()});continue}
+      raw.lines.push({...base,lpn:String(get(r,'clpn')).trim()||String(get(r,'xlpn')).trim(),xsub:String(get(r,'xsub')).trim(),xloc:String(get(r,'xloc')).trim()});
+    }
+  }
+  if(!out.kind)throw new Error(`Couldn’t find an “Item” column with a quantity (On-hand, Quantity or Transaction Quantity) in ${name}.`);
+  if(out.kind==='log')Object.assign(out,logView(out.raw,null));
+  return out;
+}
+function buildFile(buf,name,skipHidden){
+  const text=/\.(tsv|txt|csv)$/i.test(name);
+  const tables=text?tableFromText(new TextDecoder('utf-8').decode(buf)):tablesFromWorkbook(buf);
+  return interpret(tables,name,skipHidden);
+}
+/* Merge several logs, counting a repeated transaction once. */
+function mergeRaw(raws){
+  const out={receipts:[],packs:[],lines:[]},seen=new Set();
+  for(const raw of raws)for(const k of ['receipts','packs','lines'])for(const x of raw[k]){
+    const key=k+'|'+(x.tx||[x.item,x.date&&x.date.getTime(),x.type,x.lpn||''].join('|'))+'|'+x.qty;
+    if(seen.has(key))continue;seen.add(key);out[k].push(x);
+  }
+  return out;
+}
+function logDays(raw){const s=new Set();if(raw)for(const k of ['receipts','packs','lines'])for(const x of raw[k])if(x.date)s.add(dayKey(x.date));return s}
+/* One day's view of the log (day=null: everything). An LPN pack belongs to the latest receipt of that item at or before the pack time. */
+/* win (optional): {recv:Set of days whose receipts count, move:Set of days whose moves count} — lets a work day absorb the weekend around it. */
+function logView(raw,day,win){
+  const rset=win?win.recv:(day?new Set([day]):null),mset=win?win.move:(day?new Set([day]):null);
+  const inDay=d=>!rset||(d&&rset.has(dayKey(d)));
+  const inMove=d=>!mset||(d&&mset.has(dayKey(d)));
+  const out={kind:'log',rows:[],moves:new Map(),info:new Map(),receiptLines:0};
+  let maxDate=null;
+  for(const k of ['receipts','packs','lines'])for(const x of raw[k])if((inDay(x.date)||inMove(x.date))&&x.date&&(!maxDate||x.date>maxDate))maxDate=x.date;
+  out.date=day||(maxDate?dayKey(maxDate):null);
+  for(const l of raw.lines){if(!inMove(l.date))continue;
+    let m=out.moves.get(l.item);if(!m){m={on:0,off:0,lines:[]};out.moves.set(l.item,m)}
+    if(l.qty>=0)m.on+=l.qty;else m.off+=-l.qty;m.lines.push(l)}
+  const all=new Map();for(const rc of raw.receipts){if(!all.has(rc.item))all.set(rc.item,[]);all.get(rc.item).push(rc)}
+  for(const l of all.values())l.sort((a,b)=>(a.date||0)-(b.date||0));
+  const recs=raw.receipts.filter(r=>inDay(r.date));out.receiptLines=recs.length;
+  const byItem=new Map();
+  for(const rc of recs){let g=byItem.get(rc.item);if(!g){g={qty:0,first:rc.date,list:[],sub:rc.sub,loc:rc.loc};byItem.set(rc.item,g)}
+    g.qty+=rc.qty;g.list.push(rc);if(rc.date&&(!g.first||rc.date<g.first))g.first=rc.date}
+  for(const [item,g] of byItem){
+    const latest=new Map();
+    for(const p of raw.packs){
+      if(p.item!==item||p.qty<=0||!p.lpn)continue;
+      if(rset){let owner=null;for(const rc of all.get(item)||[])if(!p.date||!rc.date||rc.date<=p.date)owner=rc;
+        if(!owner||!rset.has(dayKey(owner.date)))continue}
+      else if(g.first&&p.date&&p.date<g.first)continue;
+      const prev=latest.get(p.lpn);if(!prev||(p.date&&prev.date&&p.date>=prev.date))latest.set(p.lpn,p);
+    }
+    let packed=0;
+    for(const p of latest.values()){out.rows.push({item,desc:'',qty:p.qty,lpn:p.lpn,loose:false,cost:null,sub:g.sub,loc:g.loc});packed+=p.qty}
+    if(g.qty-packed>0)out.rows.push({item,desc:'',qty:g.qty-packed,lpn:'',loose:true,cost:null,sub:g.sub,loc:g.loc});
+    out.info.set(item,{desc:'',cost:null,receipts:g.list});
+  }
+  return out;
+}
+
+/* Dock scope: one subinventory and a set of its locators. */
+const sum=m=>[...m.values()].reduce((a,b)=>a+b,0);
+function locIndex(file){const m=new Map();for(const r of file.rows){if(!r.sub)continue;let s=m.get(r.sub);if(!s){s=new Map();m.set(r.sub,s)}s.set(r.loc,(s.get(r.loc)||0)+1)}return m}
+function defaultScope(recv,dock){
+  const di=locIndex(dock),ri=locIndex(recv);
+  if(!di.size&&!ri.size)return null;
+  const idx=di.size?di:ri;
+  /* Your dock, from the settings file (subinventory and locators). */
+  if(idx.has(DOCK_SUB)||ri.has(DOCK_SUB))return {sub:DOCK_SUB,locs:new Set(DOCK_LOCS)};
+  let sub=null,locs=null;
+  for(const [s,ls] of ri){if(idx.has(s)){sub=s;const hit=[...ls.keys()].filter(l=>idx.get(s).has(l));if(hit.length)locs=new Set(hit);break}}
+  if(!sub){const subs=[...idx.entries()].sort((a,b)=>sum(b[1])-sum(a[1]));const rcv=subs.find(([s])=>/rcv|rec|dock/i.test(s));sub=(rcv||subs[0])[0]}
+  if(!locs)locs=new Set(idx.get(sub)?idx.get(sub).keys():[]);
+  return {sub,locs};
+}
+const inScope=(r,scope)=>!scope||!r.sub||(r.sub===scope.sub&&scope.locs.has(r.loc));
+
+function aggregate(file,scope){
+  const m=new Map();
+  for(const r of file.rows){
+    if(!inScope(r,scope))continue;
+    let a=m.get(r.item);
+    if(!a){a={item:r.item,desc:r.desc,qty:0,cost:null,pallets:file.kind==='summary'?null:[]};m.set(r.item,a)}
+    if(!a.desc&&r.desc)a.desc=r.desc;
+    a.qty+=r.qty;if(r.cost!=null)a.cost=r.cost;
+    if(a.pallets)a.pallets.push({lpn:r.lpn,qty:r.qty,loose:r.loose});
+  }
+  return m;
+}
+/* Moves on and off the dock for each item. Each log row is one side of a transfer: on the dock's row, − is leaving the dock and + is arriving
+   (Transfer Subinventory is the other end). Moves between dock locators don't count. Rows leaving the dock for an off-site warehouse are shipments. */
+const OFFSITE=new Set(Object.keys(TK.offsite||{}));
+const DOCK_SUB=(TK.dock&&TK.dock.sub)||'',DOCK_LOCS=(TK.dock&&TK.dock.locators)||[];
+function scopedMoves(recv,scope){
+  const out=new Map();
+  const inDock=(sub,loc)=>!scope||(sub===scope.sub&&scope.locs.has(loc));
+  for(const [k,m] of recv.moves){
+    const acc={on:0,off:0,ship:0,shipLoose:0,inbound:0,inLoose:0,lines:[],offL:new Map(),shipL:new Map(),inL:new Map(),inFrom:new Map()};
+    const net=new Map(),shipNet=new Map();
+    for(const l of m.lines){
+      const src=l.sub?inDock(l.sub,l.loc):true,dst=(scope&&l.xsub)?inDock(l.xsub,l.xloc):false;
+      if(src&&dst)continue;
+      let q,other;
+      if(src){q=l.qty;other=l.xsub}else if(dst){q=-l.qty;other=l.sub}else continue;
+      const ship=q<0&&OFFSITE.has(other),inbound=q>0&&OFFSITE.has(other);
+      acc.lines.push({...l,dir:q<0?'off':'on',ship,inbound});
+      /* Pallets arriving from an off-site warehouse are opportunities, like a receipt. */
+      if(inbound){acc.inbound+=q;if(l.lpn){acc.inL.set(l.lpn,(acc.inL.get(l.lpn)||0)+q);acc.inFrom.set(l.lpn,other)}else{acc.inLoose+=q;acc.inFrom.set('',other)}}
+      if(q>=0)acc.on+=q;else{acc.off+=-q;if(ship){acc.ship+=-q;if(!l.lpn)acc.shipLoose+=-q}}
+      if(l.lpn){net.set(l.lpn,(net.get(l.lpn)||0)+q);if(ship)shipNet.set(l.lpn,(shipNet.get(l.lpn)||0)+q)}
+    }
+    if(!acc.lines.length)continue;
+    for(const [lpn,n] of net)if(n<0)acc.offL.set(lpn,-n);
+    for(const [lpn,n] of shipNet)if(n<0)acc.shipL.set(lpn,-n);
+    out.set(k,acc);
+  }
+  return out;
+}
+
+/*
+  The opportunity cycle for one day X:
+    opportunities = carried-in pallets (not done the day before) + pallets received on X
+    not done      = opportunities still on the dock the next morning   → carried into X+1
+    done          = opportunities − not done
+  opts: {scope, loose, mode:'next'|'same', day, carry:[{item,lpn,qty,since,desc}] | null, startDock: report for the morning of X (optional)}
+*/
+function compute(recv,dock,opts){
+  const scope=opts.scope,day=opts.day;
+  const R=aggregate(recv,scope),M=scopedMoves(recv,scope);
+  let D=aggregate(dock,scope);
+  const same=opts.mode==='same'&&recv.kind==='log';
+  if(same){
+    const P=new Map();
+    for(const k of new Set([...D.keys(),...R.keys(),...M.keys()])){
+      const s=D.get(k),r=R.get(k),mv=M.get(k);
+      const q=(s?s.qty:0)+(r?r.qty:0)+(mv?mv.on-mv.off:0);
+      if(!s&&!r&&q<=0)continue;
+      P.set(k,{item:k,desc:s?s.desc:'',qty:Math.max(q,0),cost:s?s.cost:null,pallets:null});
+    }
+    D=P;
+  }
+  const first=opts.carry==null;
+  const S0=first&&opts.startDock?aggregate(opts.startDock,scope):null;
+  const carryByItem=new Map();
+  if(!first)for(const c of opts.carry){if(!carryByItem.has(c.item))carryByItem.set(c.item,[]);carryByItem.get(c.item).push({...c,origin:'carry'})}
+  const keys=new Set([...R.keys(),...D.keys(),...carryByItem.keys(),...(first?M.keys():[]),...(S0?S0.keys():[])]);
+  const items=[];
+  for(const k of keys){
+    const r=R.get(k),d=D.get(k),mv=M.get(k)||null;
+    const rq=r?r.qty:0,dq=d?Math.max(d.qty,0):0;
+    let carryEst=false;
+    let carry=carryByItem.get(k)||[];
+    if(first){
+      /* No earlier day: what was on the dock at the start of the day is the carry-in.
+         From the morning report when we have it, otherwise next-morning qty − received − moved on + moved off. */
+      carry=[];
+      const startQty=S0?Math.max(S0.get(k)?S0.get(k).qty:0,0):Math.max(dq-rq-(mv?mv.on:0)+(mv?mv.off:0),0);
+      let covered=0;
+      const recvL=new Set(r&&r.pallets?r.pallets.map(p=>p.lpn).filter(Boolean):[]);
+      if(mv)for(const [lpn,n] of mv.offL){if(!recvL.has(lpn)&&covered<startQty){carry.push({item:k,lpn,qty:n,since:null,origin:'carry'});covered+=n}}
+      if(startQty-covered>0){
+        if(d&&d.pallets){
+          for(const p of d.pallets){if(covered>=startQty)break;if(p.lpn&&recvL.has(p.lpn))continue;carry.push({item:k,lpn:p.lpn,qty:p.qty,since:null,origin:'carry'});covered+=p.qty}}
+        if(startQty-covered>0){carry.push({item:k,lpn:'',qty:startQty-covered,since:null,origin:'carry',estimate:true});carryEst=true}
+      }
+    }
+    let recvP=r&&r.pallets?r.pallets.filter(p=>!p.loose||opts.loose).map(p=>({item:k,lpn:p.lpn,qty:p.qty,since:day,origin:'recv',loose:p.loose})):[];
+    const recvKnown=!(r&&!r.pallets);
+    if(mv&&mv.inbound>0){
+      const have=new Set([...carry,...recvP].map(p=>p.lpn).filter(Boolean));
+      for(const [lpn,q] of mv.inL)if(!have.has(lpn))recvP.push({item:k,lpn,qty:q,since:day,origin:'offsite',from:mv.inFrom.get(lpn)});
+      if(mv.inLoose>0&&opts.loose)recvP.push({item:k,lpn:'',qty:mv.inLoose,since:day,origin:'offsite',from:mv.inFrom.get(''),loose:true});
+    }
+    carry.sort((a,b)=>(a.since||'0000').localeCompare(b.since||'0000'));
+    /* Loose quantity (no LPN) received this day is one pallet unless a count was set for it on this item. */
+    const lc=opts.looseCount&&opts.looseCount[day+'|'+k];
+    if(lc>1){const L=recvP.filter(p=>!p.lpn);if(L.length===1){const p=L[0];recvP.splice(recvP.indexOf(p),1,...Array.from({length:lc},()=>({...p,qty:p.qty/lc,split:lc})))}}
+    /* Shipments to an off-site warehouse aren't put-aways: those pallets drop out of the count entirely.
+       Matched by LPN first; any shipped quantity left over takes the newest pallets. */
+    const shipped=[];let shipEst=false;
+    if(mv&&mv.ship>0){
+      let lpnQty=0;
+      for(const p of [...carry,...recvP])if(p.lpn&&mv.shipL.has(p.lpn)){p.ship=true;lpnQty+=p.qty}
+      let rem=mv.shipLoose;
+      for(const p of [...recvP].reverse().concat([...carry].reverse())){if(rem<=0)break;if(p.ship)continue;p.ship=true;rem-=p.qty;shipEst=true}
+      for(const p of [...carry,...recvP])if(p.ship)shipped.push(p);
+      carry=carry.filter(p=>!p.ship);recvP=recvP.filter(p=>!p.ship);
+    }
+    const opps=[...carry,...recvP];
+    /* Which opportunities are still on the dock? An LPN counts as moved off only when the log shows its whole quantity leaving. */
+    const offQty=mv?mv.offL:new Map();
+    const fullyOff=p=>p.lpn&&offQty.has(p.lpn)&&offQty.get(p.lpn)>=p.qty*0.999;
+    let est=false,onDockQty=0;
+    opps.forEach(p=>{p.nd=false});
+    const cands=opps.filter(p=>!fullyOff(p));
+    if(d&&d.pallets){
+      const onL=new Map();let looseQty=0;
+      for(const p of d.pallets){if(p.lpn)onL.set(p.lpn,(onL.get(p.lpn)||0)+p.qty);else looseQty+=p.qty}
+      for(const p of cands){if(p.lpn&&onL.has(p.lpn)){p.nd=true;onDockQty+=p.qty}}
+      for(const p of cands){if(p.nd||p.lpn&&onL.size)continue;if(looseQty>0){p.nd=true;looseQty-=p.qty;onDockQty+=p.qty}}
+    }else{
+      const candQty=cands.reduce((s,p)=>s+p.qty,0);
+      if(dq>0&&cands.length){
+        if(dq>=candQty){cands.forEach(p=>p.nd=true);onDockQty=candQty}
+        else{let acc=0;for(const p of cands){if(acc>=dq)break;p.nd=true;acc+=p.qty}onDockQty=Math.min(acc,dq);est=true}
+      }
+    }
+    /* Exceptions: on-dock pallets covered by an active exception count as good, but stay on the dock and keep carrying. */
+    const exs=(opts.exceptions||[]).filter(e=>e.item===k&&e.from<=day&&(!e.to||e.to>=day));
+    opps.forEach(p=>{p.exc=null;if(p.nd&&exs.length)p.exc=exs.find(e=>!e.lpns||!e.lpns.length||e.lpns.includes(p.lpn||'(loose)'))||null});
+    const onDock=opps.filter(p=>p.nd),exc=onDock.filter(p=>p.exc),nd=onDock.filter(p=>!p.exc);
+    const other=Math.max(dq-onDockQty,0);
+    const desc=(d&&d.desc)||(r&&r.desc)||(dock.info.get(k)||{}).desc||(recv.info.get(k)||{}).desc||(S0&&S0.get(k)&&S0.get(k).desc)||(carry[0]&&carry[0].desc)||'';
+    const cost=(d&&d.cost)??(r&&r.cost)??(dock.info.get(k)||{}).cost??(recv.info.get(k)||{}).cost??null;
+    const oldest=onDock.reduce((o,p)=>p.since&&(!o||p.since<o)?p.since:o,null);
+    const status=!opps.length?'other':!nd.length?(exc.length?'excused':'done'):nd.length===opps.length?'none':'partial';
+    const ndQty=nd.reduce((s,p)=>s+p.qty,0);
+    items.push({item:k,desc,cost,rq,dq,recvKnown,carry,recvP,opps,nd,exc,onDock,exs,shipped,shipEst,est,carryEst,other,oldest,status,ndQty,
+      mv,receipts:(recv.info.get(k)||{}).receipts||null,doneN:opps.length-onDock.length});
+  }
+  const order={none:0,partial:1,excused:2,done:3,other:4};
+  items.sort((a,b)=>order[a.status]-order[b.status]||b.nd.length-a.nd.length||a.item.localeCompare(b.item));
+  const t={same,first,day,
+    carryIn:items.reduce((s,i)=>s+i.carry.length,0),
+    received:items.reduce((s,i)=>s+i.recvP.length,0),
+    shipped:items.reduce((s,i)=>s+i.shipped.length,0),
+    fromOffsite:items.reduce((s,i)=>s+i.recvP.filter(p=>p.origin==='offsite').length,0),
+    shippedItems:items.filter(i=>i.shipped.length).length,
+    recvUnits:items.reduce((s,i)=>s+i.rq,0),
+    recvItems:items.filter(i=>i.rq>0).length,
+    recvUnknown:items.some(i=>!i.recvKnown),
+    est:items.some(i=>(i.est||i.carryEst)&&i.opps.length),
+    otherItems:items.filter(i=>i.other>0).length,
+    otherValue:items.reduce((s,i)=>s+(i.cost!=null?i.other*i.cost:0),0),
+    ndValue:items.reduce((s,i)=>s+(i.cost!=null?i.ndQty*i.cost:0),0),
+    count:{none:0,partial:0,excused:0,done:0,other:0}};
+  items.forEach(i=>t.count[i.status]++);
+  t.opps=t.carryIn+t.received;
+  t.notDone=items.reduce((s,i)=>s+i.nd.length,0);
+  t.excused=items.reduce((s,i)=>s+i.exc.length,0);
+  t.done=t.opps-t.notDone-t.excused;
+  t.good=t.done+t.excused;
+  t.pct=t.opps?Math.round(t.good/t.opps*100):null;
+  t.carryOut=[];for(const i of items)for(const p of i.onDock)t.carryOut.push({item:i.item,lpn:p.lpn||'',qty:p.qty,since:p.since||null,desc:i.desc.slice(0,120)});
+  return {items,t};
+}
+
+/* Run the cycle across every day the files cover.
+   reports: [{date, file}] (morning snapshots); raw: merged log; carry0: carry-in for the first day (null = none saved). */
+function runRange(raw,reports,opts){
+  const reps=[...reports].sort((a,b)=>a.date.localeCompare(b.date));
+  const ld=logDays(raw),ldays=[...ld].sort();
+  const logMin=ldays[0]||null,logMax=ldays[ldays.length-1]||null;
+  /* Work days only (Mon–Fri), from the first morning report (the starting dock) to the day before the last one.
+     Weekend receipts count with Monday; weekend moves count with Friday (Monday's report already shows them). */
+  const out=[];let carry=opts.carry0,carryFrom=opts.carry0?'saved':null;
+  out.before=[];out.after=[];out.uncovered=[];
+  if(!reps.length)return out;
+  const wreps=reps.filter(r=>!isWeekend(r.date)),pool=wreps.length?wreps:reps;
+  let start=opts.startDay||reps[0].date;if(isWeekend(start))start=nextWorkday(start);
+  const end=addDays(pool[pool.length-1].date,-1);
+  out.before=ldays.filter(d=>d<start&&!isWeekend(d));out.after=ldays.filter(d=>d>end&&!isWeekend(d));
+  for(let d=start;d<=end;d=addDays(d,1)){
+    if(isWeekend(d))continue;
+    const rep=pool.find(r=>r.date>d);if(!rep)continue;
+    const pw=prevWorkday(d),nx=nextWorkday(d);
+    const startRep=reps.filter(r=>r.date<=d&&r.date>pw).pop();
+    if(!logMin||nx<=logMin||d>logMax){out.uncovered.push(d);continue}
+    const recvDays=new Set(),moveDays=new Set();
+    for(let x=addDays(pw,1);x<=d;x=addDays(x,1))recvDays.add(x);
+    for(let x=d;x<nx;x=addDays(x,1))moveDays.add(x);
+    const recv={...logView(raw,d,{recv:recvDays,move:moveDays}),name:'log',hiddenCount:0};
+    const useStart=carry==null&&startRep?startRep.file:null;
+    const res=compute(recv,rep.file,{scope:opts.scope,loose:opts.loose,mode:'next',day:d,carry,startDock:useStart,exceptions:opts.exceptions,looseCount:opts.looseCount});
+    out.push({day:d,rep,res,carryFrom:carry!=null?carryFrom:(useStart?'report':'estimate')});
+    carry=res.t.carryOut;carryFrom='prev:'+d;
+  }
+  return out;
+}
+
+/* ---------- Real 24-hour timing ----------
+   The morning report is a snapshot from about 3 AM, so a pallet put away after 3 AM looks late even when it beat 24 hours.
+   This follows each pallet received on a day through the log's own times until it leaves the dock, and counts it in time
+   if that was within 24 hours (Saturday and Sunday don't count). It needs the next work day's log to finish; until then
+   the day is preliminary. Pallets shipped off site are already left out, the same as the main count. */
+const HR=36e5;
+function workDeadline(ms){let left=24*HR,t=ms;
+  for(let i=0;i<30;i++){const d=new Date(t),eod=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime();
+    if(d.getDay()===0||d.getDay()===6){t=eod;continue}
+    if(eod-t>=left)return t+left;left-=eod-t;t=eod}
+  return t}
+function logEndOf(raw){let e=0;if(raw)for(const k of ['receipts','packs','lines'])for(const x of raw[k])if(x.date&&x.date.getTime()>e)e=x.date.getTime();return e}
+/* pallets: [{item,lpn,qty,t}] received on the day · opening: [{item,lpn,qty}] already on the dock that morning (moved first). */
+function realTiming(raw,scope,day,pallets,opening,exceptions){
+  const inDock=(sub,loc)=>!scope||(sub===scope.sub&&scope.locs.has(loc));
+  const items=new Set(pallets.map(p=>p.item));
+  const dayStart=keyDate(day).getTime();
+  const P=pallets.map(p=>({...p,left:p.qty,done:null,dl:workDeadline(p.t)}));
+  const O=(opening||[]).filter(o=>items.has(o.item)).map(o=>({...o,left:o.qty,t:-Infinity,old:true,done:null}));
+  const byLpn=new Map();for(const p of [...O,...P])if(p.lpn)byLpn.set(p.lpn,p);
+  const queue=new Map();for(const p of [...O,...[...P].sort((a,b)=>a.t-b.t)]){if(!queue.has(p.item))queue.set(p.item,[]);queue.get(p.item).push(p)}
+  const moves=raw?raw.lines.filter(l=>l.date&&items.has(l.item)&&l.qty<0&&l.date.getTime()>=dayStart&&(l.sub?inDock(l.sub,l.loc):true)&&!(scope&&l.xsub&&inDock(l.xsub,l.xloc))).sort((a,b)=>a.date-b.date):[];
+  for(const m of moves){const at=m.date.getTime();let need=-m.qty;
+    const take=p=>{const q=Math.min(need,p.left);p.left-=q;need-=q;if(p.left<=p.qty*0.001&&p.done==null)p.done=at};
+    const own=m.lpn&&byLpn.get(m.lpn);
+    if(own){if(own.left>0&&own.t<=at)take(own);continue}
+    const q=queue.get(m.item)||[];
+    for(const p of q){if(need<=0)break;if(p.left>0&&p.t<=at&&!p.lpn)take(p)}
+    if(!m.lpn)for(const p of q){if(need<=0)break;if(p.left>0&&p.t<=at&&p.lpn&&!p.old)take(p)}
+  }
+  const end=logEndOf(raw);
+  const exs=(exceptions||[]).filter(e=>e.from<=day&&(!e.to||e.to>=day));
+  const r={n:P.length,ok:0,exc:0,late:0,pending:0,asOf:end||null};
+  for(const p of P){
+    if(p.done!=null&&p.done<=p.dl){r.ok++;continue}
+    if(p.done==null&&end<p.dl){r.pending++;continue}
+    if(exs.some(e=>e.item===p.item&&(!e.lpns||!e.lpns.length||e.lpns.includes(p.lpn||'(loose)'))))r.exc++;else r.late++;
+  }
+  r.final=r.pending===0;
+  r.pct=r.final&&r.n?Math.round((r.ok+r.exc)/r.n*100):null;
+  return r;
+}
+/* The pallets a day's check counted as received, with the time each came in (from that item's receipts that day). */
+function realInputs(items,day){
+  const dayStart=keyDate(day).getTime(),pallets=[],opening=[];
+  for(const i of items){
+    for(const c of i.carry)opening.push({item:i.item,lpn:c.lpn||'',qty:c.qty});
+    if(!i.recvP.length)continue;
+    const rc=(i.receipts||[]).filter(x=>x.date).sort((a,b)=>a.date-b.date);
+    let k=0,used=0;
+    for(const p of i.recvP){
+      let t=null;
+      if(p.origin==='offsite'&&i.mv){const l=i.mv.lines.find(l=>l.inbound&&l.date&&(!p.lpn||l.lpn===p.lpn));if(l)t=l.date.getTime()}
+      if(t==null&&rc.length){while(k<rc.length-1&&used>=rc[k].qty){used-=rc[k].qty;k++}t=rc[k].date.getTime();used+=p.qty}
+      if(t==null)t=dayStart;
+      pallets.push({item:i.item,lpn:p.lpn||'',qty:p.qty,t});
+    }
+  }
+  return {pallets,opening};
+}
+/*CORE-END*/
+
+/* ---------- Example data (made up, so you can see how it works) ---------- */
+function exFile(name,kind,rows,extra){const f={name,kind,example:true,hiddenCount:0,sheets:[''],moves:new Map(),info:new Map(),date:null,raw:null,...extra};
+  f.rows=rows.map(r=>({item:r[0],desc:r[1],qty:r[2],lpn:r[3]||'',loose:kind!=='summary'&&!r[3],cost:r[4]??null,sub:'RCV',loc:'DOCK-1'}));return f}
+const EX_RECV=exFile('Example · dock transaction log','log',[
+  ['100100','Router, model A',800,'LPN-0001'],['100100','Router, model A',800,'LPN-0002'],
+  ['100100','Router, model A',800,'LPN-0003'],['100100','Router, model A',800,'LPN-0004'],
+  ['100200','Wall bracket',18000,'LPN-0005'],['100200','Wall bracket',18000,'LPN-0006'],['100200','Wall bracket',13000,'LPN-0007'],
+  ['100300','Splice enclosure',2688,''],
+],{date:'2026-10-14'});
+EX_RECV.moves=new Map([
+  ['100400',{on:0,off:56000,lines:[{qty:-16000,lpn:'LPN-0101',sub:'RCV',loc:'DOCK-1'},{qty:-16000,lpn:'LPN-0102',sub:'RCV',loc:'DOCK-1'},{qty:-24000,lpn:'LPN-0103',sub:'RCV',loc:'DOCK-1'}]}],
+  ['100500',{on:0,off:10000,lines:[{qty:-10000,lpn:'LPN-0104',sub:'RCV',loc:'DOCK-1'}]}]]);
+EX_RECV.info=new Map([['100400',{desc:'Drop cable reel, 2000 ft'}],['100500',{desc:'Strand marker'}]]);
+const EX_DOCK=exFile('Example · inventory report, next morning','summary',[
+  ['100100','Router, model A',1600,''],
+  ['100200','Wall bracket',49000,''],
+  ['100600','Riser boots, 30/box',1080,'',18.39],
+  ['100700','Lock box',189,'',258.39],
+  ['100800','Network terminal, model B',1368,'',75],
+],{date:'2026-10-15'});
+const EMPTY_LOG={name:'',kind:'log',rows:[],moves:new Map(),info:new Map(),raw:{receipts:[],packs:[],lines:[]},hiddenCount:0,date:null};
+const EMPTY_DOCK={name:'',kind:'summary',rows:[],moves:new Map(),info:new Map(),hiddenCount:0,date:null};
+
+const state={recvList:null,reports:null,files:{recv:EX_RECV,dock:EX_DOCK},raw:null,errors:{recv:[],dock:[]},busy:{},
+  mode:'next',filter:'nd',q:'',loose:true,skipHidden:true,scope:null,open:new Set(),day:'2026-10-14',dayTouched:false,
+  range:null,selDay:null,db:null,dbState:'loading',history:[],saving:false,confirmDel:null,exceptions:[],confirmEx:null,openWeeks:new Set(),showBays:false,looseCount:{}};
+const REASONS=(TK.reasons&&TK.reasons.length)?TK.reasons:["Waiting on vendor","Shipping out","Supervisor approved","Count off (over / short)","Equipment down","No location / space","PO issue","Other"];   // the exception list, from the settings file
+const cssId=s=>String(s).replace(/[^A-Za-z0-9]/g,'_');
+const weekOf=k=>addDays(k,-((keyDate(k).getDay()+6)%7));
+state.scope=defaultScope(EX_RECV,EX_DOCK);
+
+/* ---------- Helpers ---------- */
+const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const money=n=>'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const STATUS={none:'Not done',partial:'Partly done',excused:'Exception',done:'Done',other:'Other stock'};
+const THIS_YEAR=new Date().getFullYear();
+const yr=k=>keyDate(k).getFullYear()!==THIS_YEAR?{year:'numeric'}:{};
+const fmtDay=k=>k?keyDate(k).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',...yr(k)}):'';
+const fmtShort=k=>k?keyDate(k).toLocaleDateString('en-US',{month:'short',day:'numeric',...yr(k)}):'';
+const KIND={log:'Transaction log',detail:'LPN on-hand',summary:'Inventory totals'};
+const isExample=()=>!!(state.files.recv.example||state.files.dock.example);
+/* The first day to check. The daily routine is yesterday's log plus this morning's report, so when the log has the
+   work day before the first report, that day is checked too: its carryover comes from the saved day before it. */
+function rangeStart(){
+  const reps=[...(state.reports||[])].map(r=>r.date).sort();if(!reps.length)return null;
+  let first=reps[0];if(isWeekend(first))first=nextWorkday(first);
+  const pw=prevWorkday(first),ld=state.raw?logDays(state.raw):new Set();
+  return ld.has(pw)?pw:first;
+}
+const isRange=()=>!!(state.raw&&state.reports&&state.reports.length&&(state.reports.length>1||logDays(state.raw).size>1));
+/* The saved check for the work day right before this one. An older saved day isn't used: its leftovers would be weeks out of date. */
+function prevRecord(day){const pw=prevWorkday(day);return state.history.find(h=>h.date===pw)||null}
+function carryFromRecord(p){return p?(p.carry||[]).map(c=>({item:c[0],lpn:c[1],qty:c[2],since:c[3]||null,desc:(p.desc||{})[c[0]]||''})):null}
+function ageOf(since){if(!since)return null;return workdaysBetween(since,state.day)+(state.mode==='same'?0:1)}
+function rangeLabel(dates){const s=[...dates].filter(Boolean).sort();if(!s.length)return '';
+  const f=k=>keyDate(k).toLocaleDateString('en-US',{month:'short',day:'numeric',...(keyDate(s[0]).getFullYear()!==keyDate(s[s.length-1]).getFullYear()||keyDate(k).getFullYear()!==THIS_YEAR?{year:'numeric'}:{})});
+  return s.length===1?f(s[0]):`${f(s[0])} – ${f(s[s.length-1])}`}
+
+/* Rebuild the working files from what's loaded. */
+function derive(){
+  if(state.recvList&&state.recvList.length){
+    const logs=state.recvList.filter(f=>f.kind==='log');
+    if(logs.length){
+      state.raw=mergeRaw(logs.map(f=>f.raw));
+      state.files.recv={...logView(state.raw,null),name:logs.map(f=>f.name).join(', '),hiddenCount:logs.reduce((s,f)=>s+f.hiddenCount,0),raw:state.raw};
+    }else{state.raw=null;state.files.recv=state.recvList[state.recvList.length-1]}
+  }else if(state.recvList){state.raw=null;state.files.recv=EMPTY_LOG}
+  else{state.raw=null;state.files.recv=EX_RECV}
+  if(state.reports&&state.reports.length){
+    const reps=[...state.reports].sort((a,b)=>a.date.localeCompare(b.date));
+    state.files.dock={...reps[reps.length-1].file,date:reps[reps.length-1].date};
+  }else state.files.dock=state.reports?EMPTY_DOCK:EX_DOCK;
+}
+
+/* ---------- Rendering ---------- */
+function renderMode(){
+  const R=isRange();
+  document.getElementById('modebar').hidden=R;
+  const S=!R&&state.mode==='same';
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===state.mode));
+  document.getElementById('modeHint').textContent=S?'This morning’s report + today’s log = what’s on the dock right now.':'Each day’s log against the report pulled the next morning.';
+  document.getElementById('dockHelp').textContent=S?'The inventory report pulled this morning, before receipts. The full report is fine; pick the dock below.':'One report per morning. The date is read from the file name, like “Inventory Value Report for 2026-10-15”.';
+  document.getElementById('thDock').innerHTML=S?'Qty on<br>dock now':'Qty on dock<br>next AM';
+  document.getElementById('thDone').innerHTML=S?'Done<br>so far':'Done in<br>24 hrs';
+  document.getElementById('thLeft').innerHTML=S?'Still on<br>dock':'Not<br>done';
+}
+function renderBays(){
+  const R=state.files.recv,D=state.files.dock;
+  /* box 1 */
+  const cr=document.getElementById('chip-recv'),lr=document.getElementById('list-recv');
+  document.getElementById('bay-recv').classList.toggle('loaded',!!(state.recvList&&state.recvList.length));
+  document.getElementById('clear-recv').hidden=!(state.recvList&&state.recvList.length);
+  if(state.busy.recv)cr.innerHTML='<span class="chip busy">Reading…</span>';
+  else if(state.errors.recv.length&&!(state.recvList&&state.recvList.length))cr.innerHTML='<span class="chip err">Couldn’t read file</span>';
+  else if(!state.recvList)cr.innerHTML='<span class="chip ex">Example · Oct 14</span>';
+  else if(!state.recvList.length)cr.innerHTML='';
+  else if(state.raw){const ld=logDays(state.raw);cr.innerHTML=`<span class="chip ok">${state.recvList.length} log${state.recvList.length===1?'':'s'} · ${fmt(state.raw.receipts.length)} receipts · ${rangeLabel(ld)}</span>`}
+  else cr.innerHTML=`<span class="chip ok">${KIND[R.kind]}</span>`;
+  lr.innerHTML=!state.recvList?'<span class="dim" style="font-family:var(--body)">Using example data from your Oct 14 files</span>'
+    :state.recvList.map(f=>{const d=f.raw?rangeLabel(logDays(f.raw)):'';return `<span>${d?`<b>${d}</b>`:''}${esc(f.name)}</span>`}).join('')||'<span class="dim" style="font-family:var(--body)">No files yet</span>';
+  /* box 2 */
+  const cd=document.getElementById('chip-dock'),ldk=document.getElementById('list-dock');
+  document.getElementById('bay-dock').classList.toggle('loaded',!!(state.reports&&state.reports.length));
+  document.getElementById('clear-dock').hidden=!(state.reports&&state.reports.length);
+  if(state.busy.dock)cd.innerHTML='<span class="chip busy">Reading…</span>';
+  else if(state.errors.dock.length&&!(state.reports&&state.reports.length))cd.innerHTML='<span class="chip err">Couldn’t read file</span>';
+  else if(!state.reports)cd.innerHTML='<span class="chip ex">Example · Oct 15</span>';
+  else if(!state.reports.length)cd.innerHTML='';
+  else cd.innerHTML=`<span class="chip ok">${state.reports.length} report${state.reports.length===1?'':'s'} · ${rangeLabel(state.reports.map(r=>r.date))}</span>`;
+  ldk.innerHTML=!state.reports?'<span class="dim" style="font-family:var(--body)">Using example data from your Oct 14 files</span>'
+    :[...state.reports].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>`<span><b>${fmtDay(r.date)}${r.named?'':' (file date)'}</b>${esc(r.name)}</span>`).join('')||'<span class="dim" style="font-family:var(--body)">No files yet</span>';
+}
+function renderStatus(t){
+  const el=document.getElementById('statusLine'), ex=isExample(), have=!!(state.recvList&&state.recvList.length&&state.reports&&state.reports.length);
+  const bays=document.getElementById('bays'); bays.hidden=have&&!state.showBays;
+  const rng=isRange(), rg=state.range||[], graded=rng?rg.filter(d=>d.res):[];
+  const what=ex?'Example data (Oct 14)':rng?`Checking ${graded.length} day${graded.length===1?'':'s'}${graded.length?` · ${fmtShort(graded[0].day)} – ${fmtShort(graded[graded.length-1].day)}`:''}`:`Checking 1 day · ${fmtDay(state.day)}`;
+  const files=!have?'':`log ${state.raw?rangeLabel(logDays(state.raw)):state.recvList.length+' file'+(state.recvList.length===1?'':'s')} · ${state.reports.length} morning report${state.reports.length===1?'':'s'}`;
+  el.innerHTML=`<span class="what">${what}</span><span class="dim">${state.mode==='next'?'24-hour check':'Same-day live count'}</span>${files?`<span class="dim">Files: ${files}</span>`:''}
+    ${have?`<button class="btn small" type="button" id="toggleBays">${state.showBays?'Hide files':'Change files'}</button>`:''}`;
+}
+/* ---------- Watch list ----------
+   Items that need something done when they come in (for example the PC Help part list: Misc Issue to 16300, then a $0 Misc Receipt).
+   When a watched item is received on the day being checked, it's flagged at the top and on its row. */
+function cellStr(v){return String(v??'').trim()}
+function parseWatch(buf,name){
+  const text=/\.(tsv|txt|csv)$/i.test(name);
+  const tables=text?tableFromText(new TextDecoder('utf-8').decode(buf)):tablesFromWorkbook(buf);
+  const rows=[];for(const t of tables)for(const r of t.rows)rows.push(r.map(cellStr));
+  const home=TK.dock&&TK.dock.homeMatch?new RegExp(TK.dock.homeMatch,'i'):null,local=!!home&&rows.some(r=>r.some(c=>home.test(c)));
+  const out=new Map();
+  for(const r of rows){
+    if(local&&!r.some(c=>home.test(c)))continue;
+    const ii=r.findIndex(c=>/^\d{5,6}$/.test(c));if(ii<0)continue;
+    const item=r[ii],po=r.find((c,k)=>k!==ii&&/^3\d{6}$/.test(c))||'';
+    const desc=r.find((c,k)=>k>ii&&/[a-z]{3}/i.test(c)&&!/^[A-Z]{3,10}$/.test(c))||'';
+    const key=item+'|'+po;if(!out.has(key))out.set(key,[item,po,desc.slice(0,80)]);
+  }
+  return [...out.values()];
+}
+function watchMap(){const m=new Map();for(const [item,po,desc] of (state.watch&&state.watch.items)||[]){if(!m.has(item))m.set(item,{desc,pos:new Set()});if(po)m.get(item).pos.add(po)}return m}
+function watchHits(items){
+  const W=watchMap();if(!W.size)return [];
+  const hits=[];
+  for(const i of items){const w=W.get(i.item);if(!w)continue;
+    const rc=i.receipts||[];if(!i.recvP.length&&!rc.length)continue;
+    const pos=[...new Set(rc.map(r=>r.src).filter(Boolean))];
+    hits.push({item:i.item,desc:i.desc||w.desc,pos,poMatch:pos.some(p=>w.pos.has(p)),openPos:[...w.pos],pallets:i.recvP.length});}
+  return hits;
+}
+async function saveWatch(next,keepBox){
+  state.watch=next;if(!keepBox)renderWatch();render();
+  if(state.db){try{await state.db.doc('watch/list').set(next)}catch(e){toast(saveErr(e,'the watch list'))}}
+  else{try{localStorage.setItem('d2s.watch',JSON.stringify(next))}catch(e){}}
+}
+function renderWatch(){
+  const box=document.getElementById('watchBox'),sum=document.getElementById('watchSum');if(!box)return;
+  const w=state.watch,list=(w&&w.items)||[],nItems=new Set(list.map(x=>x[0])).size;
+  sum.textContent=list.length?`Watch list · ${fmt(nItems)} item${nItems===1?'':'s'}`:'Watch list';
+  box.innerHTML=`<div class="watchbox">
+    ${list.length?`<div><b>${fmt(nItems)}</b> item${nItems===1?'':'s'} watched${w.name?` · from ${esc(w.name)}`:''}${w.at?` · loaded ${new Date(w.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`:''}</div>`
+      :`<div class="dim">Load a list of item numbers that need something done when they come in, like the PC Help part list. When one of them is received on the day you're checking, it's flagged at the top and on its row. (If the file lists several warehouses, only your warehouse's lines are kept.)</div>`}
+    <label>What has to be done when these come in<input type="text" id="watchNote" value="${esc((w&&w.note)||'')}" placeholder="e.g. Tell NetOps, check the serials, set aside for inspection"></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <label class="btn small" style="cursor:pointer">${list.length?'Replace list':'Load list'}<input type="file" id="watchFile" accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt" hidden></label>
+      ${list.length?'<button class="btn small" type="button" id="watchClear">Clear list</button>':''}
+    </div></div>`;
+}
+document.getElementById('watchBox').addEventListener('change',async e=>{
+  if(e.target.id==='watchFile'){const f=e.target.files[0];if(!f)return;
+    try{const items=parseWatch(await f.arrayBuffer(),f.name);
+      if(!items.length){toast('No item numbers found in that file.');return}
+      await saveWatch({items,name:f.name,at:new Date().toISOString(),note:(state.watch&&state.watch.note)||''});
+      toast(`Watch list: ${new Set(items.map(x=>x[0])).size} items loaded.`)}catch(err){toast('Couldn’t read that file.')}}
+  if(e.target.id==='watchNote')saveWatch({...(state.watch||{items:[]}),note:e.target.value.trim().slice(0,200)},true);
+});
+document.getElementById('watchBox').addEventListener('click',e=>{if(e.target.id==='watchClear')saveWatch({items:[],note:(state.watch&&state.watch.note)||''})});
+function renderNotices(t){
+  const n=[],R=state.files.recv,D=state.files.dock,rng=isRange();
+  for(const k of ['recv','dock'])for(const e of state.errors[k])n.push(`<div class="notice err">${esc(e)}</div>`);
+  if(isExample())n.push('<div class="notice">Example data is loaded so you can see how it works. Add your log and morning reports to check real days.</div>');
+  if(state.recvList&&!state.recvList.length)n.push('<div class="notice warn">Add the dock transaction log in box 1.</div>');
+  if(state.reports&&!state.reports.length)n.push('<div class="notice warn">Add at least one morning inventory report in box 2.</div>');
+  for(const r of state.reports||[])if(!r.named)n.push(`<div class="notice warn">No date found in “${esc(r.name)}”, so its file date (${fmtDay(r.date)}) is used. Rename it with the report date to be sure.</div>`);
+  const real=!isExample();
+  const hits=isExample()?[]:watchHits(last.items||[]);
+  if(hits.length){const note=state.watch&&state.watch.note;
+    n.unshift(`<div class="notice warn watch"><b>⚑ ${hits.length} watch-list item${hits.length===1?'':'s'} received ${t?fmtShort(t.day):''}${note?` — ${esc(note)}`:''}</b><br>${hits.map(h=>`${esc(h.item)} ${esc(String(h.desc).slice(0,40))}${h.pos.length?` · PO ${h.pos.map(esc).join(', ')}`:''}${h.poMatch?'':h.openPos.length?` <span class="dim">(on the list under PO ${h.openPos.slice(0,3).map(esc).join(', ')})</span>`:''}`).join('<br>')}</div>`)}
+  if(rng){
+    const rg=state.range||[],reps0=[...state.reports].sort((a,b)=>a.date.localeCompare(b.date));
+    const list=ds=>ds.length<=4?ds.map(fmtShort).join(', '):`${fmtShort(ds[0])} – ${fmtShort(ds[ds.length-1])}`;
+    if(rg.before&&rg.before.length)n.push(`<div class="notice">The log also has ${rg.before.length} day${rg.before.length===1?'':'s'} of transactions before the first report (${list(rg.before)}). Those days are skipped, because there’s no morning report to start from. Add earlier reports to include them.</div>`);
+    if(rg.after&&rg.after.length)n.push(`<div class="notice">${list(rg.after)} ${rg.after.length===1?'is':'are'} waiting for the next morning’s report, so ${rg.after.length===1?'it isn’t':'they aren’t'} checked yet.</div>`);
+    if(rg.uncovered&&rg.uncovered.length)n.push(`<div class="notice warn">The log doesn’t cover ${list(rg.uncovered)}, so ${rg.uncovered.length===1?'that day is':'those days are'} skipped. The carryover passes straight through.</div>`);
+    if(reps0.length===1&&!rg.some(d=>d.res))n.push('<div class="notice warn">Only one morning report is loaded. Add the next morning’s report to check a day.</div>');
+    const reps=[...state.reports].sort((a,b)=>a.date.localeCompare(b.date));
+    const wr=reps.filter(r=>!isWeekend(r.date));
+    for(let i=1;i<wr.length;i++){const miss=workdaysBetween(wr[i-1].date,wr[i].date)-1;
+      if(miss>0)n.push(`<div class="notice warn">No report for ${miss===1?fmtDay(nextWorkday(wr[i-1].date)):`${miss} work days between ${fmtDay(wr[i-1].date)} and ${fmtDay(wr[i].date)}`}. ${miss===1?'The day before it is':'Those days are'} checked against the ${fmtDay(wr[i].date)} report.</div>`)}
+    const wkr=reps.filter(r=>isWeekend(r.date));
+    if(wkr.length&&wr.length)n.push(`<div class="notice">Weekend report${wkr.length===1?'':'s'} (${wkr.map(r=>fmtShort(r.date)).join(', ')}) ${wkr.length===1?'isn’t':'aren’t'} used to check days, since you’re closed on weekends. Friday is checked against Monday’s report.</div>`);
+  }else if(t){
+    if(state.mode==='next'&&real&&D.date&&D.date<=state.day)
+      n.push(`<div class="notice warn">The dock report is dated ${fmtDay(D.date)}, not the morning after ${fmtDay(state.day)}. For a 24-hour check it needs to be pulled the next morning. If you want today’s count, switch to <b>Same day</b>, or add the next morning’s report too.</div>`);
+    if(state.mode==='same'&&R.kind!=='log')
+      n.push('<div class="notice warn">A same-day count needs the dock transaction log in box 1, so receipts and moves can be applied to this morning’s report.</div>');
+    if(state.mode==='same'&&real&&R.kind==='log'&&D.date&&D.date!==state.day)
+      n.push(`<div class="notice warn">The morning report is dated ${fmtDay(D.date)} but you’re counting ${fmtDay(state.day)}. For a same-day count both should be from the same day.</div>`);
+    const prev=prevRecord(state.day);
+    if(prev&&workdaysBetween(prev.date,state.day)>1)
+      n.push(`<div class="notice warn">The last saved day is ${fmtDay(prev.date)}. Days in between weren’t saved, so the carryover may be missing pallets received since then.</div>`);
+  }
+  if(t&&t.first&&t.carryIn)n.push(`<div class="notice">No saved day before ${fmtDay(t.day)}, so its ${fmt(t.carryIn)} carried-in pallet${t.carryIn===1?' is':'s are'} worked out from what was already on the dock (the reports have no LPNs, so these are estimates). After that, each day’s carryover comes straight from the day before.</div>`);
+  const hid=[...(state.recvList||[]),...(state.reports||[]).map(r=>r.file)].filter(f=>f.hiddenCount);
+  for(const f of hid)n.push(`<div class="notice">${esc(f.name)}: ${f.hiddenCount} row${f.hiddenCount>1?'s were':' was'} hidden by an Excel filter and ${state.skipHidden?'skipped':'included'}.</div>`);
+  if(t&&t.recvUnknown)n.push('<div class="notice warn">The received file only has item totals, so received pallets can’t be counted. Use the dock transaction log in box 1.</div>');
+  // Problems stay in view; background notes fold into one line.
+  const loud=n.filter(x=>/notice (warn|err)/.test(x)), quiet=n.filter(x=>!/notice (warn|err)/.test(x));
+  document.getElementById('notices').innerHTML=loud.join('')+(quiet.length?`<details class="notes"><summary>Notes (${quiet.length})</summary>${quiet.join('')}</details>`:'');
+}
+function renderScope(){
+  const el=document.getElementById('scope');const sc=state.scope;
+  const idx=locIndex(state.files.dock.rows.some(r=>r.sub)?state.files.dock:state.files.recv);
+  if(!sc||!idx.size){el.hidden=true;return}
+  el.hidden=false;
+  const subs=[...idx.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  const locs=[...(idx.get(sc.sub)||new Map()).entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  el.innerHTML=`<span class="lbl">Dock</span>
+    <label for="subSel" class="tog">Subinventory</label>
+    <select id="subSel">${subs.map(([s,m])=>`<option value="${esc(s)}" ${s===sc.sub?'selected':''}>${esc(s)} (${fmt(sum(m))} rows)</option>`).join('')}</select>
+    <span class="lbl" style="margin-left:4px">Locators</span>
+    ${locs.length>40?`<span class="dim" style="font-size:13px">${locs.length} locators, ${sc.locs.size} selected</span>`:''}
+    ${locs.slice(0,40).map(([l,c])=>`<label class="tog"><input type="checkbox" data-loc="${esc(l)}" ${sc.locs.has(l)?'checked':''}> <span class="mono">${esc(l||'(blank)')}</span> <span class="dim">${c}</span></label>`).join('')}`;
+}
+function renderDaySec(t,info){
+  const rng=isRange();
+  document.getElementById('dayInput').hidden=rng;document.getElementById('dayLbl').hidden=rng;
+  document.getElementById('dayInput').value=state.day;
+  const title=document.getElementById('dayTitle');
+  title.textContent=rng&&t?fmtDay(t.day):'';title.hidden=!rng;
+  const el=document.getElementById('carrySrc');
+  if(!t){el.textContent='';return}
+  const against=info&&info.rep?`Checked against the ${fmtDay(info.rep.date)} report. `:'';
+  let c;
+  if(info&&info.carryFrom&&info.carryFrom.startsWith('prev:'))c=`Carryover: the not-done pallets from ${fmtDay(info.carryFrom.slice(5))}.`;
+  else if(info&&info.carryFrom==='saved'||(!info&&info&&false)){const p=prevRecord(t.day);c=`Carryover: ${fmt(t.carryIn)} not-done pallets from the saved ${p?fmtDay(p.date):''} check.`}
+  else if(info&&info.carryFrom==='report')c=`Carryover: what the ${fmtDay(t.day)} morning report shows on the dock (estimated pallets).`;
+  else if(!info){const p=prevRecord(t.day);c=p?`Carryover: ${fmt(p.notDone)} not-done pallet${p.notDone===1?'':'s'} from the saved ${fmtDay(p.date)} check.`:t.carryIn?'Carryover: estimated from stock already on the dock (no earlier day saved).':'Carryover: none (no earlier day saved).'}
+  else c=t.carryIn?'Carryover: estimated from stock already on the dock.':'Carryover: none.';
+  el.textContent=against+c;
+}
+function renderSummary(t,real){
+  const el=document.getElementById('summary');
+  if(!t){el.innerHTML='<div class="stat wide"><span class="dim">Load files to see results.</span></div>';return}
+  const S=t.same,e=t.est?'≈':'',rng=isRange();
+  const pct=x=>t.opps?Math.round(x/t.opps*100):0;
+  const existing=state.history.find(h=>h.date===state.day);
+  let saveBtn='',saveNote='';
+  if(rng)saveNote='Save the whole range with the button in “Days in these files”.';
+  else{
+    if(state.dbState==='ready'&&!S&&!isExample())saveBtn=`<button class="btn primary" id="saveBtn" type="button" ${state.saving||!t.opps?'disabled':''}>${state.saving?'Saving…':existing?`Replace saved ${fmtShort(state.day)}`:`Save ${fmtShort(state.day)} to daily log`}</button>`;
+    saveNote=state.dbState!=='ready'?(state.dbState==='loading'?'Connecting to the daily log…':'The daily log isn’t available in this view, so results can’t be saved here.')
+      :S?'Same-day counts aren’t saved. Run the next-morning check to save a day.'
+      :isExample()?'Load your own files to save a day.'
+      :existing?`${fmtDay(state.day)} is already saved. Saving again replaces it, and the next day’s carryover uses the new result.`
+      :`Saving records these numbers and carries the ${fmt(t.notDone)} not-done pallet${t.notDone===1?'':'s'} into ${fmtDay(addDays(state.day,1))}.`;
+  }
+  el.innerHTML=`
+    <div class="stat in"><span class="lbl">Opportunities</span><span class="v">${e}${fmt(t.opps)}</span>
+      <span class="eq">${t.first&&t.carryIn?'≈':''}${fmt(t.carryIn)} carried in + ${fmt(t.received)} received${t.fromOffsite?` (${fmt(t.fromOffsite)} from off site)`:''}</span></div>
+    <div class="stat"><span class="lbl">Pallets received</span><span class="v">${t.recvUnknown?'—':fmt(t.received)}</span>
+      <span class="d">${t.recvItems} item${t.recvItems===1?'':'s'} · ${fmt(t.recvUnits)} units</span></div>
+    <div class="stat ok"><span class="lbl">${S?'Done so far today':'Done within 24 hours'}</span><span class="v">${e}${fmt(t.good)}</span>
+      <span class="d">${t.opps?pc(pct(t.good))+' of opportunities':'No opportunities'}${t.excused?` · ${fmt(t.done)} put away + ${fmt(t.excused)} exception${t.excused===1?'':'s'}`:''}</span></div>
+    <div class="stat bad"><span class="lbl">${S?'Still on the dock':'Not done in 24 hours'}</span><span class="v">${e}${fmt(t.notDone)}</span>
+      <span class="d">${t.opps?pct(t.notDone)+'% · ':''}carries into ${fmtShort(nextWorkday(t.day))}${t.ndValue?` · ${money(t.ndValue)}`:''}</span></div>
+    ${real&&real.n?`<div class="stat wide realrow"><span class="lbl">Real 24 hours · from the log’s times</span>
+      ${real.final?`<span class="realv">${pc(real.pct)} <span class="d">${fmt(real.ok)} of ${fmt(real.n)} pallets received ${fmtShort(t.day)} left the dock within 24 hours${real.exc?` · ${fmt(real.exc)} excused`:''}${real.late?` · ${fmt(real.late)} took longer`:''}</span></span>
+        <span class="d">The morning report can only see the dock at about 3 AM, so it counts pallets put away later that morning as missed. This uses the time each pallet actually left.</span>`
+      :`<span class="realv"><span class="prelim">Preliminary</span> <span class="d">${fmt(real.ok+real.exc)} of ${fmt(real.n)} pallets received ${fmtShort(t.day)} are already off the dock in time. The other ${fmt(real.pending)} finish when ${fmtShort(nextWorkday(t.day))}’s transaction history is loaded.</span></span>`}
+    </div>`:''}
+    <div class="stat wide" style="gap:10px">
+      <div class="split" role="img" aria-label="${fmt(t.done)} put away, ${fmt(t.excused)} exceptions, ${fmt(t.notDone)} not done">${t.opps?`<i class="p" style="width:${t.done/t.opps*100}%"></i><i class="x" style="width:${t.excused/t.opps*100}%"></i><i class="l" style="width:${t.notDone/t.opps*100}%"></i>`:''}</div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--good)"></span>Put away <b>${fmt(t.done)}</b></span>
+        ${t.excused?`<span><span class="sw" style="background:var(--info)"></span>Exceptions <b>${fmt(t.excused)}</b></span>`:''}
+        <span><span class="sw" style="background:var(--bad)"></span>Not done <b>${fmt(t.notDone)}</b></span>
+        <span>Dock to stock ${pc(t.pct)} <span class="dim">goal ${GOAL}%</span></span>
+        ${t.shipped?`<span>Shipped off site, not counted: <b>${fmt(t.shipped)}</b> pallet${t.shipped===1?'':'s'}</span>`:''}
+        ${t.otherItems?`<span style="margin-left:auto">Other stock on dock, not counted: <b>${t.otherItems}</b> item${t.otherItems===1?'':'s'}${t.otherValue?` · ${money(t.otherValue)}`:''}</span>`:''}
+      </div>
+      <div class="savebar">${saveBtn}<span class="dim" style="font-size:13px">${saveNote}</span></div>
+    </div>`;
+}
+function ageChip(since){const a=ageOf(since);if(a==null)return '<span class="dim">before log</span>';return `<span class="age ${a>=2?'old':''}">${a} day${a===1?'':'s'}</span>`}
+function renderTable(items){
+  const q=state.q.toLowerCase();
+  const pass=i=>state.filter==='all'||(state.filter==='nd'?i.nd.length>0:state.filter==='carry'?i.carry.length>0:state.filter==='done'?(i.opps.length&&!i.onDock.length):state.filter==='exc'?(i.exc.length>0||i.exs.length>0):i.other>0);
+  const rows=items.filter(i=>pass(i)&&(!q||i.item.toLowerCase().includes(q)||i.desc.toLowerCase().includes(q)));
+  const tb=document.getElementById('tbody');
+  const watchSet=new Set(((state.watch&&state.watch.items)||[]).map(x=>x[0]));
+  if(!rows.length){tb.innerHTML='<tr><td colspan="11" class="empty">No items match.</td></tr>';return}
+  tb.innerHTML=rows.map(i=>{
+    const open=state.open.has(i.item),e=(i.est||i.carryEst)&&i.opps.length?'≈':'';
+    let html=`<tr class="row s-${i.status}" tabindex="0" data-item="${esc(i.item)}" aria-expanded="${open}">
+      <td class="mono">${esc(i.item)}${watchSet.has(i.item)&&(i.recvP.length||(i.receipts||[]).length)?`<div><span class="watcht" title="${esc((state.watch&&state.watch.note)||'On the watch list')}">⚑ WATCH</span></div>`:''}${i.opps.some(p=>!p.lpn&&!p.estimate)?`<div><span class="looset" title="Some of this item has no LPN">LOOSE</span></div>`:''}</td><td><div class="desc" title="${esc(i.desc)}">${esc(i.desc)||'—'}</div></td>
+      <td class="n mono">${i.carry.length?(i.carryEst?'≈':'')+fmt(i.carry.length):'<span class="dim">0</span>'}</td>
+      <td class="n mono">${i.recvKnown?(i.recvP.length?fmt(i.recvP.length):'<span class="dim">0</span>'):'?'}</td>
+      <td class="n mono"><b>${fmt(i.opps.length)}</b></td>
+      <td class="n mono">${i.opps.length?`<span class="gd">${e}${fmt(i.doneN)}</span>`:'<span class="dim">—</span>'}</td>
+      <td class="n mono">${i.opps.length?(i.nd.length?`<span class="bd">${e}${fmt(i.nd.length)}</span>`:'0'):'<span class="dim">—</span>'}${i.exc.length?`<div class="xc">${fmt(i.exc.length)} exception${i.exc.length===1?'':'s'}</div>`:''}</td>
+      <td class="n mono">${fmt(i.dq)}${i.other>0?`<div class="dim" style="font-size:12px">${fmt(i.other)} other</div>`:''}</td>
+      <td>${i.onDock.length?ageChip(i.oldest):'<span class="dim">—</span>'}</td>
+      <td><span class="st ${i.status}">${STATUS[i.status]}</span></td></tr>`;
+    if(open)html+=`<tr class="detail"><td colspan="10">${detail(i)}</td></tr>`;
+    return html}).join('');
+}
+function looseBox(i){
+  const L=i.recvP.filter(p=>!p.lpn), day=last.t&&last.t.day; if(!L.length||!day) return '';
+  const units=L.reduce((s,p)=>s+p.qty,0), n=L.length, key=day+'|'+i.item, set=state.looseCount[key];
+  return `<div class="loosebox"><span class="looset">LOOSE</span> <b>${fmt(Math.round(units))} units</b> received with no LPN on ${fmtShort(day)}, counted as
+    <input type="number" min="1" max="99" step="1" class="loosen" id="loose-${esc(i.item)}" data-loose="${esc(key)}" value="${set||n}" aria-label="Pallets for the loose quantity of ${esc(i.item)}"> pallet${n===1?'':'s'}.
+    <span class="dim">${set?'Set by hand.':'Change it if it came in on more than one pallet.'} Compare with this item's other pallets to match them up.</span></div>`;
+}
+function detail(i){
+  let h=looseBox(i);
+  if(i.opps.length){
+    h+=`<div class="lbl">Opportunities · ${i.carry.length} carried in + ${i.recvP.length} received</div><div class="lpns">`+
+      i.opps.map(p=>`<div class="lpn ${p.exc?'ex':p.nd?'nd':''}"><span>${p.lpn?esc(p.lpn):p.estimate?'Older stock (est.)':'Loose (no LPN)'}<br><small>${p.origin==='carry'?(p.since?'carried · since '+fmtShort(p.since):'carried · before log'):p.origin==='offsite'?`from ${esc((TK.offsite&&TK.offsite[p.from])||p.from||'off site')} · ${fmtShort(p.since)}`:'received '+fmtShort(p.since)}</small></span><span style="text-align:right">${fmt(p.qty)}<br><small>${p.exc?'exception':p.nd?'on dock':'put away'}</small></span></div>`).join('')+'</div>';
+  }
+  if(i.receipts&&i.receipts.length)h+=`<div class="dline">Receipts: ${i.receipts.map(r=>`${fmt(r.qty)}${r.src?' on PO '+esc(r.src):''}${r.date?' at '+r.date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):''}`).join(', ')}</div>`;
+  if(i.shipped.length)h+=`<div class="dline"><b>Shipped off site, not counted:</b> ${i.shipped.map(p=>`${p.lpn||'loose'} (${fmt(p.qty)})`).join(', ')}${i.shipEst?' · matched by quantity':''}.</div>`;
+  if(i.mv){const bits=[];if(i.mv.on)bits.push(`${fmt(i.mv.on)} moved onto the dock`);if(i.mv.off-i.mv.ship>0)bits.push(`${fmt(i.mv.off-i.mv.ship)} moved off the dock`);if(i.mv.ship)bits.push(`${fmt(i.mv.ship)} shipped off site`);
+    if(bits.length)h+=`<div class="dline">Log moves that day: ${bits.join(', ')}.</div>`}
+  h+=`<div class="dline">${state.mode==='same'&&!isRange()?'On the dock now':'On the dock next morning'}: ${fmt(i.dq)}${i.other>0?`, of which ${fmt(i.other)} isn’t an opportunity (other stock)`:''}.</div>`;
+  if(i.est)h+=`<div class="dline">The report only has a total for this item, so the oldest pallets are counted as the ones still on the dock.</div>`;
+  if(i.cost!=null&&i.dq>0)h+=`<div class="dline">Value on dock: ${money(i.dq*i.cost)} at $${fmt(i.cost)} each.</div>`;
+  return h+exPanel(i);
+}
+function exPanel(i){
+  const can=state.dbState==='ready'&&!isExample(),day=state.day;
+  const active=state.exceptions.filter(e=>e.item===i.item&&(!e.to||e.to>=day)).sort((a,b)=>a.from.localeCompare(b.from));
+  let h='<div class="expanel"><div class="lbl">Exceptions</div>';
+  for(const e of active){
+    const n=i.exc.filter(p=>p.exc&&p.exc.id===e.id).length;
+    h+=`<div class="exrow"><span class="st excused">${esc(e.reason)}</span>${e.note?`<span>${esc(e.note)}</span>`:''}
+      <span class="dim">from ${fmtShort(e.from)}${e.to?` to ${fmtShort(e.to)}`:' until ended'} · ${e.lpns&&e.lpns.length?`${e.lpns.length} pallet${e.lpns.length===1?'':'s'}`:'every pallet of this item'}${e.from<=day?` · ${n} counted good on ${fmtShort(day)}`:' · starts later'}</span>
+      ${can?`<button class="btn small" type="button" data-endex="${e.id}">End after ${fmtShort(day)}</button>
+      ${state.confirmEx===e.id?`<button class="btn small danger" type="button" data-delex="${e.id}" data-really="1">Remove for every day</button> <button class="btn small" type="button" data-cancelex="1">Keep</button>`:`<button class="btn small danger" type="button" data-delex="${e.id}">Remove</button>`}`:''}</div>`;
+  }
+  if(!can)return h+`<div class="dline">${isExample()?'Load your own files to add exceptions.':'Exceptions are kept with the daily log, which isn’t available in this view.'}</div></div>`;
+  const free=i.onDock.filter(p=>!p.exc);
+  if(!free.length)return h+(active.length?'':'<div class="dline">Nothing from this item is left on the dock, so there’s nothing to mark.</div>')+'</div>';
+  const id=cssId(i.item);
+  h+=`<div class="exform">
+    <select id="exr-${id}" aria-label="Reason">${REASONS.map(r=>`<option>${r}</option>`).join('')}</select>
+    <input type="text" id="exn-${id}" placeholder="Note: PO number, who you’re waiting on…" aria-label="Note">
+    <select id="exs-${id}" aria-label="Which pallets"><option value="these">The ${free.length} pallet${free.length===1?'':'s'} on the dock now</option><option value="all">Every pallet of this item, new ones too</option></select>
+    <select id="exu-${id}" aria-label="How long"><option value="open">Until put away or ended</option><option value="day">${fmtShort(day)} only</option></select>
+    <button class="btn primary small" type="button" data-addex="${esc(i.item)}">Mark as exception</button></div>
+    <div class="dline" style="margin-top:0">Exception pallets count as good for the percentage. They stay on the dock list and keep their age, so you can see when the paperwork shows up.</div>`;
+  return h+'</div>';
+}
+function renderExceptions(){
+  const xb=document.getElementById('xbody'),note=document.getElementById('exNote');
+  if(state.dbState!=='ready'){xb.innerHTML=`<tr><td colspan="8" class="empty">${state.dbState==='loading'?'Loading…':'Exceptions are kept with the daily log, which isn’t available in this view.'}</td></tr>`;note.textContent='';return}
+  const day=state.day;
+  const X=[...state.exceptions].sort((a,b)=>((a.to&&a.to<day)-(b.to&&b.to<day))||b.from.localeCompare(a.from));
+  const act=X.filter(e=>e.from<=day&&(!e.to||e.to>=day)).length;
+  note.textContent=X.length?`${act} active on ${fmtDay(day)}`:'';
+  if(!X.length){xb.innerHTML='<tr><td colspan="8" class="empty">No exceptions. Open an item that’s still on the dock to mark one, like a pallet waiting on a vendor.</td></tr>';return}
+  const byItem=new Map(last.items.map(i=>[i.item,i]));
+  xb.innerHTML=X.map(e=>{
+    const it=byItem.get(e.item),n=it?it.exc.filter(p=>p.exc&&p.exc.id===e.id).length:0;
+    const ended=e.to&&e.to<day;
+    return `<tr${ended?' class="dim"':''}><td class="mono">${esc(e.item)}</td><td><div class="desc" title="${esc(e.desc||'')}">${esc(e.desc||'')||'—'}</div></td>
+      <td><span class="st excused">${esc(e.reason)}</span></td><td>${esc(e.note||'')}</td>
+      <td>${fmtShort(e.from)}</td><td>${e.to?fmtShort(e.to):'Until ended'}</td>
+      <td class="n mono">${e.from<=day&&!ended?fmt(n):'<span class="dim">—</span>'}</td>
+      <td style="white-space:nowrap">${!ended&&(!e.to||e.to>day)?`<button class="btn small" type="button" data-endex="${e.id}">End after ${fmtShort(day)}</button> `:''}${state.confirmEx===e.id?`<button class="btn small danger" type="button" data-delex="${e.id}" data-really="1">Remove for every day</button> <button class="btn small" type="button" data-cancelex="1">Keep</button>`:`<button class="btn small danger" type="button" data-delex="${e.id}">Remove</button>`}</td></tr>`}).join('');
+}
+async function addException(item){
+  const i=last.items.find(x=>x.item===item);if(!i||!state.db)return;
+  const id=cssId(item),g=s=>document.getElementById(s+id);
+  const scope=g('exs-').value,until=g('exu-').value;
+  const lpns=scope==='these'?i.onDock.filter(p=>!p.exc).map(p=>p.lpn||'(loose)'):[];
+  const rec={item,desc:(i.desc||'').slice(0,160),reason:g('exr-').value,note:g('exn-').value.trim().slice(0,300),lpns,from:state.day,to:until==='day'?state.day:null,createdAt:new Date().toISOString()};
+  try{await state.db.collection('exceptions').add(rec);toast(`Marked ${item} as an exception.`)}catch(e){console.error(e);toast(saveErr(e,'the exception'))}
+}
+async function endException(id){
+  const e=state.exceptions.find(x=>x.id===id);if(!e)return;
+  try{if(state.day<e.from)await state.db.collection('exceptions').doc(id).delete();else await state.db.collection('exceptions').doc(id).update({to:state.day});toast(`Exception ends after ${fmtShort(state.day)}.`)}
+  catch(_){toast('Couldn’t update the exception. Try again.')}
+}
+async function deleteException(id){
+  try{await state.db.collection('exceptions').doc(id).delete();toast('Exception removed.')}catch(_){toast('Couldn’t remove the exception. Try again.')}
+  state.confirmEx=null;render();
+}
+function onExClick(e){
+  const b=e.target.closest('button');if(!b)return false;
+  if(b.dataset.addex){addException(b.dataset.addex);return true}
+  if(b.dataset.endex){endException(b.dataset.endex);return true}
+  if(b.dataset.cancelex){state.confirmEx=null;render();return true}
+  if(b.dataset.delex){if(b.dataset.really)deleteException(b.dataset.delex);else{state.confirmEx=b.dataset.delex;render()}return true}
+  return false;
+}
+function renderRange(){
+  const sec=document.getElementById('rangeSec');
+  if(!isRange()){sec.hidden=true;return}
+  sec.hidden=false;
+  const days=state.range||[],graded=days.filter(d=>d.res);
+  const savedChip=(day,t)=>{const h=state.history.find(x=>x.date===day);if(!h)return '<span class="dim">—</span>';
+    const same=h.opportunities===t.opps&&h.done===t.done&&(h.excused||0)===t.excused&&h.notDone===t.notDone;
+    return same?'<span class="sv ok">Saved</span>':'<span class="sv chg">Changed · save again</span>'};
+  document.getElementById('rbody').innerHTML=days.length?days.map(d=>{
+    if(!d.res)return `<tr><td>${fmtDay(d.day)}</td><td colspan="10" class="dim">${esc(d.skip)}</td></tr>`;
+    const t=d.res.t,e=t.est?'≈':'';
+    return `<tr class="dayrow ${d.day===state.selDay?'cur':''}" tabindex="0" data-day="${d.day}">
+      <td><b>${fmtDay(d.day)}</b></td><td class="dim">${fmtDay(d.rep.date)} report</td>
+      <td class="n mono">${t.first&&t.carryIn?'≈':''}${fmt(t.carryIn)}</td><td class="n mono">${fmt(t.received)}</td>
+      <td class="n mono"><b>${fmt(t.opps)}</b></td><td class="n mono gd">${e}${fmt(t.done)}</td>
+      <td class="n mono">${t.excused?`<span class="xc">${fmt(t.excused)}</span>`:'<span class="dim">0</span>'}</td>
+      <td class="n mono ${t.notDone?'bd':''}">${e}${fmt(t.notDone)}</td>
+      <td class="n mono">${pc(t.pct)}</td><td class="n mono">${realChip(d.res.real)}</td><td>${state.dbState==='ready'?savedChip(d.day,t):''}</td></tr>`}).join('')
+    :'<tr><td colspan="11" class="empty">No days to check yet. Each day needs the log and the next morning’s report.</td></tr>';
+  const tot=graded.reduce((a,d)=>({r:a.r+d.res.t.received,o:a.o+d.res.t.opps,dn:a.dn+d.res.t.done,x:a.x+d.res.t.excused,nd:a.nd+d.res.t.notDone}),{r:0,o:0,dn:0,x:0,nd:0});
+  document.getElementById('rfoot').innerHTML=graded.length>1?`<tr><td>${graded.length} days</td><td></td><td class="n mono">${fmt(graded[0].res.t.carryIn)} <span class="dim" style="font-weight:400">to start</span></td><td class="n mono">${fmt(tot.r)}</td><td class="n mono">${fmt(tot.o)}</td><td class="n mono gd">${fmt(tot.dn)}</td><td class="n mono">${fmt(tot.x)}</td><td class="n mono bd">${fmt(tot.nd)}</td><td class="n mono">${tot.o?pc(Math.round((tot.dn+tot.x)/tot.o*100)):'—'}</td><td></td></tr>`:'';
+  const saved=graded.filter(d=>state.history.some(h=>h.date===d.day)).length;
+  const rs=document.getElementById('rangeSave');
+  if(state.dbState!=='ready'){rs.innerHTML=`<span class="dim" style="font-size:13px">${state.dbState==='loading'?'Connecting to the daily log…':'The daily log isn’t available in this view.'}</span>`;return}
+  rs.innerHTML=graded.length?`<button class="btn primary" type="button" id="saveAllBtn" ${state.saving?'disabled':''}>${state.saving?'Saving…':`Save ${graded.length} day${graded.length===1?'':'s'} to daily log`}</button>${saved?`<span class="dim" style="font-size:13px">Replaces ${saved} day${saved===1?'':'s'} already saved.</span>`:''}`:'';
+}
+function renderHistory(){
+  const hb=document.getElementById('hbody'),note=document.getElementById('histNote');
+  if(state.dbState==='loading'){hb.innerHTML='<tr><td colspan="11" class="empty">Loading the daily log…</td></tr>';note.textContent='';return}
+  if(state.dbState!=='ready'){hb.innerHTML='<tr><td colspan="11" class="empty">The daily log isn’t available in this view. Open the page signed in to claude.ai to save and see days.</td></tr>';note.textContent='';return}
+  const H=[...state.history].sort((a,b)=>b.date.localeCompare(a.date));
+  if(!H.length){hb.innerHTML='<tr><td colspan="11" class="empty">No days saved yet. Load the log and the morning reports, then press Save. Each saved day’s not-done pallets carry into the next day.</td></tr>';note.textContent='';return}
+  const good=h=>h.done+(h.excused||0);
+  const tot=H.reduce((a,h)=>({o:a.o+h.opportunities,g:a.g+good(h)}),{o:0,g:0});
+  note.textContent=`${H.length} day${H.length===1?'':'s'} saved · ${tot.o?Math.round(tot.g/tot.o*100):0}% overall`;
+  const weeks=new Map();for(const h of H){const w=weekOf(h.date);if(!weeks.has(w))weeks.set(w,[]);weeks.get(w).push(h)}
+  // This week's days are listed; earlier weeks fold into one line each, with a button to save that week.
+  const thisWeek=weekOf(todayKey());
+  const rows=[];
+  for(const [w,list] of weeks){
+    const s=weekTotals(list), open=w===thisWeek||state.openWeeks.has(w);
+    rows.push(`<tr class="wk"><td colspan="3"><b>${w===thisWeek?'This week':'Week of '+fmtShort(w)}</b> <span class="dim">· ${list.length} day${list.length===1?'':'s'}</span>
+        <span class="weekbtns">${w===thisWeek?'':`<button class="btn small" type="button" data-wk="${w}">${open?'Hide days':'Show days'}</button>`}<button class="btn small" type="button" data-dlwk="${w}">Download week</button></span></td>
+      <td class="n mono"><b>${fmt(s.o)}</b></td><td class="n mono gd">${fmt(s.d)}</td><td class="n mono">${s.x?`<span class="xc">${fmt(s.x)}</span>`:'0'}</td><td class="n mono ${s.n?'bd':''}">${fmt(s.n)}</td>
+      <td class="n mono">${s.o?pc(Math.round((s.d+s.x)/s.o*100)):'—'}</td><td class="n mono">${realChip(weekReal(list))}</td><td colspan="2"></td></tr>`);
+    if(open) for(const h of list)rows.push(histRow(h));
+  }
+  hb.innerHTML=rows.join('');
+}
+// Goal is 98%. 98 and up green, 85-97 yellow, 65-84 orange, below 65 red.
+const GOAL=98;
+const band=p=>p==null?'':p>=98?'g':p>=85?'y':p>=65?'o':'r';
+const pc=p=>p==null?'—':`<span class="pc ${band(p)}">${p}%</span>`;
+/* Real 24-hour result: the % once the next day's log is in, or how many are still waiting on it. */
+const realChip=r=>!r||!r.n?'<span class="dim">—</span>':r.final?pc(r.pct):`<span class="dim" title="Finishes when the next work day's transaction history is loaded">${fmt(r.ok+r.exc)} of ${fmt(r.n)} so far</span>`;
+const BAND_RGB={g:[0,150,0],y:[196,160,0],o:[230,120,20],r:[205,45,45]};
+function weekReal(list){const R=list.map(h=>h.real).filter(r=>r&&r.n);if(!R.length)return null;const n=R.reduce((a,r)=>a+r.n,0),g=R.reduce((a,r)=>a+r.ok+r.exc,0),p=R.reduce((a,r)=>a+r.pending,0);return {n,ok:g,exc:0,pending:p,final:p===0,pct:p===0&&n?Math.round(g/n*100):null}}
+function weekTotals(list){return list.reduce((a,h)=>({o:a.o+h.opportunities,d:a.d+h.done,x:a.x+(h.excused||0),n:a.n+h.notDone}),{o:0,d:0,x:0,n:0})}
+function todayKey(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+// Download week: a zip with a one-page PDF summary for a manager, the days as a spreadsheet (CSV), and the
+// exceptions that applied that week.
+async function downloadWeek(w){
+  const end=addDays(w,6), days=state.history.filter(h=>weekOf(h.date)===w).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!days.length) return;
+  if(!window.JSZip||!window.jspdf){toast("The download maker didn't load. Reload the page and try again");return}
+  const s=weekTotals(days), pct=s.o?Math.round((s.d+s.x)/s.o*100):null;
+  const X=state.exceptions.filter(e=>e.from<=end&&(!e.to||e.to>=w));
+  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const wr=weekReal(days),rv=r=>!r||!r.n?'':r.final?r.pct:'pending';
+  const csv=[['Day','Carried in','Received','Opportunities','Done in 24 hrs','Exceptions','Not done','Dock to stock %','Real 24 hrs %'].join(',')]
+    .concat(days.map(h=>[h.date,h.carryIn,h.received,h.opportunities,h.done,h.excused||0,h.notDone,h.pct==null?'':h.pct,rv(h.real)].join(',')))
+    .concat([['Week total','','',s.o,s.d,s.x,s.n,pct==null?'':pct,rv(wr)].join(',')]).join('\n');
+  const xcsv=[['Item','Description','Reason','Note','From','Until','LPNs'].join(',')]
+    .concat(X.map(e=>[e.item,e.desc,e.reason,e.note,e.from,e.to||'still open',(e.lpns||[]).join(' ')].map(q).join(','))).join('\n');
+  // PDF
+  const {jsPDF}=window.jspdf, doc=new jsPDF({unit:'pt',format:'letter'}), W=612, M=48, G=[0,150,0], INK=[25,30,25], MU=[110,120,110], LN=[215,222,215];
+  doc.setFillColor(...G); doc.rect(0,0,W,6,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(22); doc.setTextColor(...INK); doc.text('Dock to stock: weekly report',M,66);
+  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(...MU);
+  doc.text(`Week of ${fmtShort(w)} – ${fmtShort(end)}. Share of pallets on the receiving dock put away within 24 hours.`,M,86);
+  doc.setFont('helvetica','bold'); doc.setFontSize(40); doc.setTextColor(...(BAND_RGB[band(pct)]||INK)); doc.text(pct==null?'—':pct+'%',M,140);
+  doc.setFontSize(10); doc.setTextColor(...MU); doc.text(`Goal ${GOAL}%`,M,156);
+  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(...INK);
+  doc.text(`${s.o} pallets to put away · ${s.d} put away in time · ${s.x} excused · ${s.n} not done`,M+120,132);
+  if(wr){doc.setTextColor(...MU);doc.text(wr.final?`Real 24 hours, from the log's times: ${wr.pct}% of ${wr.n} pallets received left the dock within 24 hours.`:`Real 24 hours, from the log's times: ${wr.ok} of ${wr.n} received pallets in time so far (${wr.pending} waiting on the next day's history).`,M+120,148);doc.setTextColor(...INK)}
+  let y=176; const cols=[['Day',M,'left'],['Carried in',250,'right'],['Received',318,'right'],['To put away',398,'right'],['Done',448,'right'],['Excused',500,'right'],['Not done',552,'right'],['%',W-M+8,'right']];
+  doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...MU); cols.forEach(([t,x,a])=>doc.text(t.toUpperCase(),x,y,{align:a})); y+=7; doc.setDrawColor(...LN); doc.line(M,y,W-M,y); y+=16;
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+  for(const h of days){ const v=[fmtDay(h.date),h.carryIn,h.received,h.opportunities,h.done,h.excused||0,h.notDone,h.pct==null?'—':h.pct+'%'];
+    cols.forEach(([t,x,a],i)=>{ if(i===7&&h.pct!=null){doc.setFont('helvetica','bold');doc.setTextColor(...BAND_RGB[band(h.pct)])} doc.text(String(v[i]),x,y,{align:a}); doc.setFont('helvetica','normal');doc.setTextColor(...INK); }); y+=18; }
+  doc.setDrawColor(...INK); doc.line(M,y-11,W-M,y-11); doc.setFont('helvetica','bold');
+  ['Week total','','',s.o,s.d,s.x,s.n,pct==null?'—':pct+'%'].forEach((v,i)=>doc.text(String(v),cols[i][1],y+4,{align:cols[i][2]})); y+=40;
+  if(X.length){ doc.setFontSize(13); doc.text('Exceptions that applied this week',M,y); y+=18; doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    for(const e of X){ if(y>740){doc.addPage();y=M}
+      doc.text(`${e.item}  ${String(e.desc||'').slice(0,40)}`,M,y); doc.setTextColor(...MU);
+      doc.text(`${e.reason}${e.note?' · '+String(e.note).slice(0,40):''} · ${fmtShort(e.from)} to ${e.to?fmtShort(e.to):'still open'}`,M+250,y); doc.setTextColor(...INK); y+=16; } }
+  doc.setFontSize(8.5); doc.setTextColor(...MU); doc.text(`Dock to stock weekly report · week of ${fmtShort(w)} · made ${new Date().toLocaleDateString('en-US')}`,M,770);
+  const zip=new JSZip(), name=`dock-to-stock-week-of-${w}`;
+  zip.file(`${name}.pdf`,doc.output('blob')); zip.file(`${name}-days.csv`,csv); zip.file(`${name}-exceptions.csv`,xcsv);
+  try{ const dl=await toolkitUse('downloads'); if(!dl){toast("Saving files isn't available in this view");return}
+    await dl.save({filename:`${name}.zip`,data:await zip.generateAsync({type:'blob'})}); toast('Saved the week'); }
+  catch(e){ if(e&&e.code!=='declined') toast(`Couldn't save the week (${(e&&(e.message||e.code))||'unknown'})`); }
+}
+function histRow(h){
+  return `<tr class="${h.date===state.day?'cur':''}">
+    <td>${fmtDay(h.date)}</td><td class="n mono">${h.firstDay?'≈':''}${fmt(h.carryIn)}</td><td class="n mono">${fmt(h.received)}</td>
+    <td class="n mono"><b>${fmt(h.opportunities)}</b></td><td class="n mono gd">${fmt(h.done)}</td>
+    <td class="n mono">${h.excused?`<span class="xc">${fmt(h.excused)}</span>`:'<span class="dim">0</span>'}</td><td class="n mono ${h.notDone?'bd':''}">${fmt(h.notDone)}</td>
+    <td class="n mono">${pc(h.pct)}</td><td class="n mono">${realChip(h.real)}</td>
+    <td class="dim" style="font-size:12.5px">${h.savedAt?new Date(h.savedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</td>
+    <td style="white-space:nowrap">${state.confirmDel===h.date
+      ?`<button class="btn small danger" type="button" data-del="${h.date}" data-really="1">Delete ${fmtShort(h.date)}</button> <button class="btn small" type="button" data-cancel="1">Keep</button>`
+      :`<button class="btn small" type="button" data-del="${h.date}">Delete</button>`}</td></tr>`;
+}
+let last={items:[],t:null},lastInfo=null;
+function render(){
+  renderMode();renderBays();renderScope();
+  lastInfo=null;
+  if(isRange()){
+    const first=rangeStart();
+    const prev=first?prevRecord(first):null;
+    state.range=runRange(state.raw,state.reports,{startDay:first,scope:state.scope,loose:state.loose,carry0:carryFromRecord(prev),exceptions:state.exceptions,looseCount:state.looseCount});
+    const graded=state.range.filter(d=>d.res);
+    if(!graded.find(d=>d.day===state.selDay))state.selDay=graded.length?graded[graded.length-1].day:null;
+    const sel=graded.find(d=>d.day===state.selDay);
+    const FR=fullRaw();
+    for(const d of graded){const x=realInputs(d.res.items,d.day);d.res.real=FR?realTiming(FR,state.scope,d.day,x.pallets,x.opening,state.exceptions):null;d.res.realIn=x}
+    if(sel){state.day=sel.day;last=sel.res;lastInfo=sel}else last={items:[],t:null};
+  }else{
+    state.range=null;
+    const prev=prevRecord(state.day);
+    const startRep=null;
+    last=compute(state.files.recv,state.files.dock,{scope:state.scope,loose:state.loose,mode:state.mode,day:state.day,carry:carryFromRecord(prev),startDock:startRep,exceptions:state.exceptions,looseCount:state.looseCount});
+    const FR=fullRaw();
+    if(FR&&last.t&&!last.t.same&&!isExample()){const x=realInputs(last.items,state.day);last.real=realTiming(FR,state.scope,state.day,x.pallets,x.opening,state.exceptions);last.realIn=x}
+  }
+  renderStatus(last.t);renderRange();renderDaySec(last.t,lastInfo);renderNotices(last.t);renderSummary(last.t,last.real);renderTable(last.items);renderExceptions();renderHistory();
+}
+
+/* ---------- Saving ---------- */
+function recordOf(t,day,repName,res){
+  const desc={};for(const c of t.carryOut)if(c.desc)desc[c.item]=c.desc;
+  return {date:day,savedAt:new Date().toISOString(),carryIn:t.carryIn,received:t.received,opportunities:t.opps,done:t.done,excused:t.excused,notDone:t.notDone,
+    pct:t.pct,firstDay:t.first,estimated:t.est,recvFile:state.files.recv.name||'',dockFile:repName||state.files.dock.name||'',
+    scope:state.scope?{sub:state.scope.sub,locs:[...state.scope.locs]}:null,
+    carry:t.carryOut.map(c=>[c.item,c.lpn,c.qty,c.since]),desc,
+    ...(res&&res.real?{real:res.real,realP:res.realIn.pallets.map(p=>[p.item,p.lpn,p.qty,p.t]),realO:res.realIn.opening.map(o=>[o.item,o.lpn,o.qty])}:{})};
+}
+async function saveDay(){
+  if(!state.db||state.saving)return;
+  const t=last.t;state.saving=true;render();
+  try{await state.db.collection('days').doc(state.day).set(recordOf(t,state.day,null,last));await saveLogDays();toast(`Saved ${fmtShort(state.day)}. ${fmt(t.carryOut.length)} pallets carry into ${fmtShort(nextWorkday(state.day))}.`)}
+  catch(e){console.error(e);toast(e&&e.code==='quota_exceeded'?'The daily log is full. Delete some old days and try again.':saveErr(e,'the day'))}
+  state.saving=false;render();
+}
+async function saveAll(){
+  if(!state.db||state.saving||!state.range)return;
+  const graded=state.range.filter(d=>d.res);state.saving=true;render();
+  let ok=0;
+  for(const d of graded){
+    try{await state.db.collection('days').doc(d.day).set(recordOf(d.res.t,d.day,d.rep.file.name,d.res));ok++}
+    catch(e){toast(e&&e.code==='quota_exceeded'?'The daily log is full. Delete some old days and try again.':`Couldn’t save ${fmtShort(d.day)}. Saved ${ok} of ${graded.length}.`);break}
+  }
+  if(ok)await saveLogDays();
+  if(ok===graded.length)toast(`Saved ${ok} day${ok===1?'':'s'} to the daily log.`);
+  state.saving=false;render();
+}
+/* The dock transaction log is saved by day, so a later day's history can finish an earlier day's real 24-hour check. */
+const EMPTY_RAW=()=>({receipts:[],packs:[],lines:[]});
+let frCache={a:null,b:null,v:null};
+function fullRaw(){if(frCache.a===state.savedRaw&&frCache.b===state.raw)return frCache.v;const L=[state.savedRaw,state.raw].filter(Boolean);frCache={a:state.savedRaw,b:state.raw,v:L.length?mergeRaw(L):null};return frCache.v}
+function packLog(raw,day){
+  const rows=[],t=x=>x.date?x.date.getTime():0;
+  for(const x of raw.receipts)if(x.date&&dayKey(x.date)===day)rows.push(JSON.stringify(['r',x.item,x.sub,x.loc,t(x),x.tx,x.type,x.qty,x.src||'']));
+  for(const x of raw.packs)if(x.date&&dayKey(x.date)===day)rows.push(JSON.stringify(['p',x.item,x.sub,x.loc,t(x),x.tx,x.type,x.qty,x.lpn||'']));
+  for(const x of raw.lines)if(x.date&&dayKey(x.date)===day)rows.push(JSON.stringify(['l',x.item,x.sub,x.loc,t(x),x.tx,x.type,x.qty,x.lpn||'',x.xsub||'',x.xloc||'']));
+  return rows;
+}
+function unpackLog(docs){
+  const raw=EMPTY_RAW();
+  for(const d of docs)for(const s of d.rows||[]){let a;try{a=JSON.parse(s)}catch(e){continue}
+    const base={item:a[1],sub:a[2],loc:a[3],date:a[4]?new Date(a[4]):null,tx:a[5],type:a[6],qty:a[7]};
+    if(a[0]==='r')raw.receipts.push({...base,src:a[8]});else if(a[0]==='p')raw.packs.push({...base,lpn:a[8]});else raw.lines.push({...base,lpn:a[8],xsub:a[9],xloc:a[10]});}
+  return raw;
+}
+async function saveLogDays(){
+  if(!state.db||!state.raw)return;
+  for(const day of logDays(state.raw)){const rows=packLog(state.raw,day);if(!rows.length)continue;
+    try{await state.db.collection('log').doc(day).set({day,rows,savedAt:new Date().toISOString()})}catch(e){}}
+}
+/* Saved days still waiting on the next day's history: finish them when that history is here. */
+let finalizing=false;
+async function finalizeSaved(){
+  if(!state.db||finalizing)return;const FR=fullRaw();if(!FR)return;
+  finalizing=true;
+  try{
+    for(const h of state.history){
+      if(!h.realP||!h.real||h.real.final)continue;
+      const pallets=h.realP.map(a=>({item:a[0],lpn:a[1],qty:a[2],t:a[3]})),opening=(h.realO||[]).map(a=>({item:a[0],lpn:a[1],qty:a[2]}));
+      const sc=h.scope?{sub:h.scope.sub,locs:new Set(h.scope.locs)}:state.scope;
+      const r=realTiming(FR,sc,h.date,pallets,opening,state.exceptions);
+      if(r.final||r.ok+r.exc!==h.real.ok+h.real.exc){try{await state.db.collection('days').doc(h.date).update({real:r})}catch(e){}}
+    }
+  }finally{finalizing=false}
+}
+async function deleteDay(date){
+  try{await state.db.collection('days').doc(date).delete();toast(`Deleted ${fmtShort(date)}.`)}catch(e){toast('Couldn’t delete that day. Try again.')}
+  state.confirmDel=null;render();
+}
+try{const w=JSON.parse(localStorage.getItem('d2s.watch')||'null');if(w)state.watch=w}catch(e){}
+renderWatch();
+(async()=>{
+  try{
+    const db=await toolkitUse('db');
+    if(!db){state.dbState='off';render();return}
+    state.db=db;
+    db.collection('days').orderBy('date','desc').limit(400).onSnapshot(snap=>{
+      state.history=snap.docs.map(d=>d.data()).filter(h=>h&&h.date);state.dbState='ready';render();
+    },()=>{state.dbState='off';render()});
+    db.doc('watch/list').onSnapshot(snap=>{const d=snap.exists?snap.data():null;state.watch=d?{...d}:null;if(!(document.activeElement&&document.activeElement.id==='watchNote'))renderWatch();render()},()=>{});
+    db.collection('log').limit(400).onSnapshot(snap=>{
+      state.savedRaw=unpackLog(snap.docs.map(d=>d.data()));render();finalizeSaved();
+    },()=>{});
+    db.collection('loose').limit(2000).onSnapshot(snap=>{
+      const m={}; snap.docs.forEach(d=>{const x=d.data(); if(x&&x.day&&x.item&&x.pallets>0) m[x.day+'|'+x.item]=x.pallets}); state.looseCount=m; render();
+    },()=>{});
+    db.collection('exceptions').limit(1000).onSnapshot(snap=>{
+      state.exceptions=snap.docs.map(d=>({...d.data(),id:d.id})).filter(e=>e&&e.item&&e.from);render();
+    },()=>{});
+  }catch(_){state.dbState='off';render()}
+})();
+
+/* ---------- Loading files ---------- */
+async function loadFiles(k,fileList){
+  const files=[...fileList];if(!files.length)return;
+  state.busy[k]=true;state.errors[k]=[];renderBays();
+  await new Promise(r=>setTimeout(r,30));
+  if(k==='recv'&&!state.recvList)state.recvList=[];
+  if(k==='dock'&&!state.reports)state.reports=[];
+  for(const file of files){
+    try{
+      const buf=await file.arrayBuffer();
+      const parsed=buildFile(buf,file.name,state.skipHidden);parsed._buf=buf;
+      if(k==='recv'){
+        if(parsed.kind==='log'){state.recvList=state.recvList.filter(f=>f.kind==='log'&&f.name!==file.name);state.recvList.push(parsed)}
+        else state.recvList=[parsed];
+        if(parsed.kind==='log'&&!parsed.raw.receipts.length&&!parsed.raw.lines.length)state.errors.recv.push(`${file.name} has no transactions.`);
+      }else{
+        if(parsed.kind==='log'){state.errors.dock.push(`${file.name} looks like a transaction log. Put it in box 1.`);continue}
+        let date=dateFromName(file.name),named=!!date;
+        if(!date)date=dayKey(new Date(file.lastModified||Date.now()));
+        parsed.date=date;
+        state.reports=state.reports.filter(r=>r.date!==date);
+        state.reports.push({name:file.name,date,named,file:parsed,buf});
+      }
+    }catch(e){state.errors[k].push(e.message||('Couldn’t open '+file.name+'. Save it as .xlsx and try again.'))}
+  }
+  state.busy[k]=false;
+  afterLoad();
+}
+function afterLoad(){
+  derive();
+  state.scope=defaultScope(state.files.recv,state.files.dock);state.open.clear();
+  const R=state.files.recv,D=state.files.dock;
+  if(!isRange()&&!isExample()){
+    if(R.kind==='log'&&R.date&&D.date)state.mode=D.date<=R.date?'same':'next';
+    if(!state.dayTouched){const d=R.date||(D.date?(state.mode==='same'?D.date:addDays(D.date,-1)):null);if(d)state.day=d}
+  }
+  if(isRange())state.mode='next';
+  render();finalizeSaved();
+}
+for(const k of ['recv','dock']){
+  const inp=document.getElementById('file-'+k),bay=document.getElementById('bay-'+k);
+  inp.addEventListener('change',()=>{loadFiles(k,inp.files);inp.value=''});
+  bay.addEventListener('dragover',e=>{e.preventDefault();bay.classList.add('drag')});
+  bay.addEventListener('dragleave',()=>bay.classList.remove('drag'));
+  bay.addEventListener('drop',e=>{e.preventDefault();bay.classList.remove('drag');loadFiles(k,e.dataTransfer.files)});
+  document.getElementById('clear-'+k).addEventListener('click',()=>{if(k==='recv')state.recvList=[];else state.reports=[];state.errors[k]=[];state.selDay=null;afterLoad()});
+}
+
+/* ---------- Controls ---------- */
+document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>{state.mode=b.dataset.m;state.open.clear();render()}));
+document.querySelectorAll('#filterSeg button').forEach(b=>b.addEventListener('click',()=>{
+  state.filter=b.dataset.f;document.querySelectorAll('#filterSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderTable(last.items)}));
+document.getElementById('dayInput').addEventListener('change',e=>{if(e.target.value){state.day=e.target.value;state.dayTouched=true;state.open.clear();render()}});
+document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value;renderTable(last.items)});
+document.getElementById('loose').addEventListener('change',e=>{state.loose=e.target.checked;render()});
+document.getElementById('statusLine').addEventListener('click',e=>{ if(e.target.id==='toggleBays'){state.showBays=!state.showBays;render()} });
+// A pallet count typed for loose quantity is saved with the day, so everyone sees it and it carries forward.
+document.getElementById('tbody').addEventListener('change',async e=>{
+  const inp=e.target.closest('input.loosen'); if(!inp) return;
+  const key=inp.dataset.loose, n=Math.max(1,Math.min(99,Math.round(+inp.value||1)));
+  state.looseCount={...state.looseCount,[key]:n}; render();
+  const [day,item]=key.split('|');
+  if(state.db){ try{ await state.db.collection('loose').doc(`${day}_${item}`).set({day,item,pallets:n,at:new Date().toISOString()}); toast('Saved the pallet count'); }catch(err){ toast("Couldn't save the pallet count"); } }
+});
+document.getElementById('hidden').addEventListener('change',e=>{state.skipHidden=e.target.checked;
+  if(state.recvList)state.recvList=state.recvList.map(f=>{try{const p=buildFile(f._buf,f.name,state.skipHidden);p._buf=f._buf;return p}catch(_){return f}});
+  if(state.reports)state.reports=state.reports.map(r=>{try{const p=buildFile(r.buf,r.name,state.skipHidden);p.date=r.date;return {...r,file:p}}catch(_){return r}});
+  derive();render()});
+document.getElementById('scope').addEventListener('change',e=>{
+  if(e.target.id==='subSel'){const idx=locIndex(state.files.dock.rows.some(r=>r.sub)?state.files.dock:state.files.recv);
+    state.scope={sub:e.target.value,locs:new Set((idx.get(e.target.value)||new Map()).keys())}}
+  else if(e.target.dataset.loc!=null){const l=e.target.dataset.loc;e.target.checked?state.scope.locs.add(l):state.scope.locs.delete(l)}
+  state.open.clear();render()});
+document.getElementById('summary').addEventListener('click',e=>{if(e.target.id==='saveBtn')saveDay()});
+document.getElementById('rangeSave').addEventListener('click',e=>{if(e.target.id==='saveAllBtn')saveAll()});
+const rb=document.getElementById('rbody');
+function pickDay(tr){state.selDay=tr.dataset.day;state.open.clear();render();const again=rb.querySelector(`tr[data-day="${tr.dataset.day}"]`);again&&again.focus()}
+rb.addEventListener('click',e=>{const tr=e.target.closest('tr.dayrow');if(tr)pickDay(tr)});
+rb.addEventListener('keydown',e=>{const tr=e.target.closest('tr.dayrow');if(tr&&(e.key==='Enter'||e.key===' ')){e.preventDefault();pickDay(tr)}});
+document.getElementById('hbody').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.wk){const w=b.dataset.wk;state.openWeeks.has(w)?state.openWeeks.delete(w):state.openWeeks.add(w);renderHistory();return}
+  if(b.dataset.dlwk){downloadWeek(b.dataset.dlwk);return}
+  if(b.dataset.cancel){state.confirmDel=null;renderHistory();return}
+  if(b.dataset.del){if(b.dataset.really)deleteDay(b.dataset.del);else{state.confirmDel=b.dataset.del;renderHistory()}}
+});
+const tb=document.getElementById('tbody');
+function toggle(tr){const it=tr.dataset.item;state.open.has(it)?state.open.delete(it):state.open.add(it);renderTable(last.items);
+  const again=tb.querySelector(`tr.row[data-item="${CSS.escape(it)}"]`);again&&again.focus()}
+tb.addEventListener('click',e=>{if(onExClick(e))return;const tr=e.target.closest('tr.row');if(tr)toggle(tr)});
+document.getElementById('xbody').addEventListener('click',onExClick);
+tb.addEventListener('keydown',e=>{const tr=e.target.closest('tr.row');if(tr&&(e.key==='Enter'||e.key===' ')){e.preventDefault();toggle(tr)}});
+
+/* invalid_argument on a well-formed write means this view isn't allowed to save (not signed in as someone who can edit). */
+function saveErr(e,what){const c=e&&e.code;return `Couldn’t save ${what} (${(e&&(c||e.message))||'unknown error'}).`}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),msg.length>80?7000:2800)}
+document.getElementById('copyBtn').addEventListener('click',()=>{
+  const lines=[];
+  if(state.range){
+    lines.push(['Day','Checked Against','Carried In','Received','Opportunities','Done','Exceptions','Not Done','Dock to Stock %'].join('\t'));
+    for(const d of state.range){if(!d.res){lines.push([d.day,d.skip].join('\t'));continue}const t=d.res.t;
+      lines.push([d.day,d.rep.date,t.carryIn,t.received,t.opps,t.done,t.excused,t.notDone,t.pct==null?'':t.pct+'%'].join('\t'))}
+    lines.push('','Items for '+state.day);
+  }
+  const head=['Item','Description','Carried In','Received','Opportunities','Done','Exceptions','Not Done','Exception Reason','Qty On Dock','Other Stock Qty','Oldest Since','Estimated','Status'];
+  lines.push(head.join('\t'),...last.items.map(i=>[i.item,i.desc.replace(/\s+/g,' '),i.carry.length,i.recvP.length,i.opps.length,i.doneN,i.exc.length,i.nd.length,[...new Set(i.exc.map(p=>p.exc.reason+(p.exc.note?' ('+p.exc.note+')':'')))].join('; ').replace(/\s+/g,' '),i.dq,i.other,i.oldest||'',(i.est||i.carryEst)?'Yes':'',STATUS[i.status]].join('\t')));
+  const t=last.t;if(t)lines.push('',['Total','',t.carryIn,t.received,t.opps,t.done,t.excused,t.notDone,'','','','',t.est?'Yes':'',t.pct==null?'':t.pct+'%'].join('\t'));
+  const txt=lines.join('\n');
+  try{navigator.clipboard.writeText(txt).then(()=>toast('Copied. Paste into Excel.'),()=>fallback(txt))}catch(_){fallback(txt)}
+});
+function fallback(txt){const ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:0;top:0;opacity:0';document.body.appendChild(ta);ta.select();
+  let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();toast(ok?'Copied. Paste into Excel.':'Copy was blocked here. Select the table and copy it instead.')}
+
+render();
+</script>
+
+</body></html>

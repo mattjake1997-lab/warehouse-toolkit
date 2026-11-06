@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dock Priority List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Same look as the Dock to Stock Check: one working column, dock-floor yellow marks the working controls. */
+:root{
+  --bg:#f3f4f2; --panel:#ffffff; --ink:#1b1f24; --muted:#5d6670; --line:#d9ddd9;
+  --accent:#e2a900; --accent-ink:#6b4f00; --accent-soft:#fdf3d2;
+  --good:#1f7a4d; --good-soft:#e2f2e9; --warn:#a85d00; --warn-soft:#fbead4;
+  --bad:#b3261e; --bad-soft:#f8e1df; --info:#3b5b8c; --info-soft:#e3eaf5;
+  --display:"Archivo",system-ui,sans-serif; --body:"Archivo",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14171b; --panel:#1c2026; --ink:#e8eaec; --muted:#9aa3ad; --line:#2e343c;
+  --accent:#f2c230; --accent-ink:#f2c230; --accent-soft:#2d2610;
+  --good:#5cc391; --good-soft:#15291f; --warn:#f0a548; --warn-soft:#2e2112;
+  --bad:#f08079; --bad-soft:#331a19; --info:#8eb0e3; --info-soft:#18233a; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1260px;margin:0 auto;padding:28px 16px 64px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;border-bottom:3px solid var(--accent);padding-bottom:14px}
+h1{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:clamp(28px,4.5vw,40px);letter-spacing:-.01em;margin:0;line-height:1}
+h2.sec{font-family:var(--display);font-stretch:85%;font-size:22px;margin:0;font-weight:800}
+.sub{color:var(--muted);margin:6px 0 0;max-width:70ch}
+.lbl{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.dim{color:var(--muted)}
+.hdr-r{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bays{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.bay{background:var(--panel);border:1.5px dashed var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s,background .15s;min-width:0}
+.bay.over{border-color:var(--accent);background:var(--accent-soft)}
+.bay.loaded{border-style:solid}
+.bay-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.bay h2{font-family:var(--display);font-stretch:85%;font-size:19px;margin:0;font-weight:700}
+.bay p{margin:0;color:var(--muted);font-size:13.5px}
+.flist{display:flex;flex-direction:column;gap:3px;font-family:var(--mono);font-size:12.5px;min-width:0}
+.flist span{word-break:break-all}
+.flist b{font-family:var(--body);font-weight:600;color:var(--muted);margin-right:6px}
+.baybtns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:auto}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.chip.ex{background:var(--info-soft);color:var(--info)}
+.chip.ok{background:var(--good-soft);color:var(--good)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.err{background:var(--bad-soft);color:var(--bad)}
+.chip.busy{background:var(--accent-soft);color:var(--accent-ink)}
+.btn{font:inherit;font-weight:600;font-size:13.5px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;border-radius:7px;cursor:pointer;display:inline-block}
+.btn:hover:not(:disabled){border-color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1500}
+.btn.danger{color:var(--bad)}
+.btn.small{font-size:12.5px;padding:4px 9px}
+.btn.link{border:none;background:none;color:var(--info);padding:4px;text-decoration:underline}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#banner:empty{display:none}
+.notice{background:var(--info-soft);color:var(--info);border-radius:8px;padding:10px 14px;font-size:13.5px}
+.notice.warn{background:var(--warn-soft);color:var(--warn)}
+.notice.err{background:var(--bad-soft);color:var(--bad)}
+.notice .btn{margin-left:6px}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+@media (max-width:980px){.summary{grid-template-columns:repeat(3,1fr)}}@media (max-width:820px){.summary{grid-template-columns:1fr 1fr}}
+.stat{background:var(--panel);padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0;border-top:4px solid transparent}
+.stat .v{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:52px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stat .d{color:var(--muted);font-size:13px}
+.stat.in{border-top-color:var(--accent)}
+.stat.ok{border-top-color:var(--good)} .stat.ok .v{color:var(--good)}
+.stat.bad{border-top-color:var(--bad)} .stat.bad .v{color:var(--bad)}
+.stat.exc{border-top-color:var(--info)} .stat.exc .v{color:var(--info)}
+.stat.due{border-top-color:var(--warn)} .stat.due .v{color:var(--warn)}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tools .l,.tools .r{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel);flex-wrap:wrap}
+.seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:none;color:var(--muted);padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button .n{font-family:var(--mono);font-size:12px;margin-left:5px;opacity:.75}
+input[type=search]{font:inherit;font-size:14px;padding:7px 11px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);width:240px;max-width:100%}
+label.tog{display:inline-flex;gap:7px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer}
+.tblwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+table.items{min-width:1160px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:bottom;background:var(--panel)}
+th.n,td.n{text-align:right}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.row td:first-child{border-left:4px solid transparent}
+tr.s-crit td:first-child{border-left-color:var(--bad)}
+tr.s-ok td:first-child{border-left-color:var(--good)}
+tr.s-exc td:first-child{border-left-color:var(--info)}
+tr.row:hover td{background:var(--bg)}
+.desc{color:var(--muted);font-size:13px;max-width:34ch}
+.st{font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block}
+.st.crit{background:var(--bad-soft);color:var(--bad)}
+.st.ok{background:var(--good-soft);color:var(--good)}
+.st.exc{background:var(--info-soft);color:var(--info)}
+.st.due{background:var(--warn-soft);color:var(--warn)}
+tr.s-due td:first-child{border-left-color:var(--warn)}
+.dueby{font-size:12px;color:var(--muted);margin-top:4px;white-space:nowrap}.dueby.soon{color:var(--warn);font-weight:600}.dueby.late{color:var(--bad);font-weight:600}
+.prio{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:28px;line-height:1;margin-bottom:5px;font-variant-numeric:tabular-nums}
+.hv{display:inline-block;margin-top:5px;font-size:11.5px;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);padding:2px 7px;border-radius:5px;white-space:nowrap}
+.pal{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:24px;line-height:1}
+.small{font-size:12px;color:var(--muted)}
+.linkbtn{border:none;background:none;padding:0;color:var(--info);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
+select,textarea{font:inherit;font-size:13.5px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);padding:6px 8px;width:100%}
+select.need{border-color:var(--bad);background:var(--bad-soft)}
+textarea{resize:vertical;min-height:36px;height:56px}
+.xc{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--info);font-weight:600;margin-top:6px}
+tr.detail td{background:var(--bg);padding:12px 16px 16px}
+.lpns{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;margin-top:8px}
+.lpn{display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:12.5px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--good);border-radius:6px;padding:6px 9px}
+.lpn.nd{border-left-color:var(--bad);background:var(--bad-soft)}
+.lpn .q{white-space:nowrap}
+.lpn small{display:block;font-family:var(--body);color:var(--muted);font-size:11.5px}
+.dline{color:var(--muted);font-size:13px}
+details.settings{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+details.settings summary{cursor:pointer;font-weight:700}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px}
+.grid2 label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.grid2 input{font:inherit;font-size:14px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;background:var(--panel);color:var(--ink)}
+.foot{color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:4px;max-width:88ch}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;z-index:5;max-width:calc(100% - 32px);opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.who{font-size:12px;color:var(--muted)}
+.agebtn{border:none;background:none;padding:0;color:var(--info);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
+.xbtn{font:inherit;font-weight:600;font-size:12.5px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:4px 9px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.xbtn:hover{border-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+details.howto{border-top:1px solid var(--line);padding-top:18px;margin-top:12px}
+details.howto summary{cursor:pointer;font-weight:600;font-size:15px;color:var(--ink);list-style:none;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+details.howto summary::before{content:"▸";font-size:11px}
+details[open].howto summary::before{content:"▾"}
+details.howto ol{margin:14px 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:88ch;font-size:14.5px}
+details.howto .more{color:var(--muted);font-size:13.5px;display:flex;flex-direction:column;gap:6px;max-width:88ch}
+details.howto .more b{color:var(--ink)}
+</style>
+<!--toolkit-theme--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"><style>/* Toolkit theme. The :not(#id) raises this above the page's own light and dark settings. */
+html:root:not(#toolkit-theme){--bg:#000000;--panel:#0a0d0a;--ink:#eef2ee;--muted:#94a294;--line:#1a231a;--accent:#00c800;--display:"Inter",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono","Courier New",monospace;color-scheme:dark;--accent-ink:#29e029;--accent-soft:#0a1f0a;--good:#3dba78;--good-soft:#0a1f14;--warn:#e8b84b;--warn-soft:#1a1205;--bad:#f06060;--bad-soft:#1a0808;--info:#7fa8d8;--info-soft:#0b1320;}
+body{background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-stretch:normal!important;letter-spacing:-.01em}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#242f24;border-radius:3px}::-webkit-scrollbar-track{background:transparent}</style><!--/toolkit-theme--><!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="lbl">Receiving · dock priority</div>
+      <h1>Dock Priority List</h1>
+      <p class="sub">What’s still sitting on the receiving dock, in the order it should be put away: oldest first, high-value parts moved up, anything over 24 hours at the top. How it works is at the bottom of the page.</p>
+      <p class="sub" id="lastUpload" style="margin-top:4px"></p>
+    </div>
+    <div class="hdr-r">
+      <span class="chip ex" id="modeTag">Connecting…</span>
+      <button class="btn" id="copyBtn" type="button">Copy summary</button>
+      <button class="btn" id="dlBtn" type="button" hidden>Download Excel</button>
+    </div>
+  </header>
+
+  <section class="bays" id="drops">
+    <div class="bay dz" data-kind="onhand">
+      <div class="bay-top"><h2>1 · On-hand by LPN</h2><span data-chip="onhand"></span></div>
+      <p>What’s on the dock right now — one row per LPN with qty. Pull it fresh each morning.</p>
+      <div class="flist" data-st="onhand"></div>
+      <div class="baybtns"><button class="btn primary addbtn" type="button">Add file</button><span class="lbl">or drop it here</span></div>
+      <input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden>
+    </div>
+    <div class="bay dz" data-kind="tx">
+      <div class="bay-top"><h2>2 · Transaction history</h2><span data-chip="tx"></span></div>
+      <p>When each LPN was received. Previous work day through now. Overlapping files are fine; repeated transactions are only counted once.</p>
+      <div class="flist" data-st="tx"></div>
+      <div class="baybtns"><button class="btn primary addbtn" type="button">Add files</button><span class="lbl">or drop them here</span></div>
+      <input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" multiple hidden>
+    </div>
+    <div class="bay dz" data-kind="mfn">
+      <div class="bay-top"><h2>3 · MFN Inventory Value <span class="dim" style="font-size:13px;font-weight:500">optional</span></h2><span data-chip="mfn"></span></div>
+      <p>Adds the $ value. Item costs are saved, so you only need to drop it now and then.</p>
+      <div class="flist" data-st="mfn"></div>
+      <div class="baybtns"><button class="btn primary addbtn" type="button">Add file</button><span class="lbl">or drop it here</span></div>
+      <input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden>
+    </div>
+  </section>
+  <div id="dropBtns" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:-10px"><button class="btn link" id="sampleBtn" type="button">Try it with sample data</button><button class="btn small danger" id="clearTop" type="button" hidden>Clear loaded reports</button></div>
+
+  <div id="banner"></div>
+
+  <section class="summary" id="tiles"></section>
+
+  <section class="tools" id="toolbar" hidden>
+    <div class="l">
+      <div class="seg" role="group" aria-label="Show" id="filterSeg"></div>
+      <input type="search" id="q" placeholder="Search item, LPN, PO or reason">
+    </div>
+    <div class="r">
+      <span class="dim" id="orderNote" style="font-size:13px"></span>
+      <label class="tog"><input type="checkbox" id="showExc" checked> Show excused</label>
+    </div>
+  </section>
+
+  <div class="tblwrap" id="listCard" hidden>
+    <table class="items">
+      <thead id="thead"></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <details class="settings" id="settings">
+    <summary>Settings</summary>
+    <div class="grid2">
+      <label>Dock locators (comma separated)<input id="setLoc" value=""></label>
+      <label>“High value” moves up the list at ($ on the dock)<input id="setHV" value="10000" inputmode="numeric"></label>
+      <label>Shift starts<input id="setShiftS" type="time" value="07:00"></label>
+      <label>Shift ends<input id="setShiftE" type="time" value="16:00"></label>
+    </div>
+    <p class="dim" style="font-size:12.5px;margin:8px 0 0">Changing the locators applies to reports you add after the change.</p>
+  </details>
+
+<details class="howto">
+    <summary>How to use this</summary>
+    <ol>
+      <li><b>Each morning, drop in the on-hand by LPN report</b> (box 1). That's what's on the dock right now.</li>
+      <li><b>Drop in the transaction history</b> (box 2) so it knows when each pallet was received. Load about two months once, then just the previous work day's file each morning.</li>
+      <li><b>Optional: drop in the MFN Inventory Value report</b> (box 3) for dollar values, so high-value parts move up.</li>
+      <li><b>Work the list from the top.</b> Red rows have been on the dock over 24 hours. Orange rows are <b>due this shift</b>; each one shows its due time and how many shift hours are left.</li>
+      <li><b>Pick a reason</b> for anything that has to sit. Excused reasons drop it to the bottom; everyone using the toolkit sees the reason.</li>
+    </ol>
+    <div class="more">
+      <span><b>Priority</b> is first in, first out: the oldest received pallet on each part sets its place. Parts worth more than the high-value amount count as one extra work day old, so they move up.</span>
+      <span><b>Over 24h</b> means more than 24 hours since it was received, with Saturday and Sunday skipped (the same rule as Dock to Stock). Since nobody works overnight, a pallet is due at the same time on the next work day.</span>
+      <span><b>Due this shift</b> means it has to be put away before this shift ends (or the next one, after hours) to stay under 24 hours. <b>Shift hours left</b> counts only the time inside your shift, set under Settings (7:00 to 4:00 to start).</span>
+      <span><b>No receipt found</b> means the LPN is on the on-hand report but not in the loaded transaction history. It’s counted from the first day it showed up until a transaction file fills in the real date.</span>
+      <span><b>Excused</b> parts are ones you mark as OK to sit, like waiting on a vendor. They drop to the bottom and stay there until they’re put away or you change the reason.</span>
+    </div>
+  </details>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// Dock engine: replays transaction history to find what is still sitting in the dock locators, by LPN.
+// tx = {id, t(ms), it, lo, lp, tl, cl, q, ty, src, tlo}
+(function(root){
+const T = {"Container Pack":"P","Container Split":"S","Container Unpack":"U"};
+function compute(txs, dockLocs){
+  const dock = new Set(dockLocs.map(s => s.toUpperCase()));
+  const parts = new Map(), lpnArr = new Map();
+  const P = (it, lo) => { const k = it + "@" + lo; let p = parts.get(k);
+    if(!p){ p = {k, it, lo, loose: [], lpns: new Map()}; parts.set(k, p); } return p; };
+  const takeLoose = (p, q) => { // FIFO, returns pieces taken
+    const out = []; p.loose.sort((a,b) => (a.t??-1) - (b.t??-1));
+    while(q > 1e-9 && p.loose.length){ const l = p.loose[0]; const n = Math.min(l.q, q);
+      out.push({t:l.t, q:n, po:l.po}); l.q -= n; q -= n; if(l.q <= 1e-9) p.loose.shift(); }
+    return out;
+  };
+  const addLpn = (p, lpn, q, t, po) => { const e = p.lpns.get(lpn);
+    if(e){ e.q += q; if(t!=null && (e.t==null || t < e.t)) e.t = t; e.po = e.po || po; }
+    else p.lpns.set(lpn, {lpn, q, t, po});
+    const a = lpnArr.get(lpn); if(!a || (t!=null && (a.t==null || t < a.t))) lpnArr.set(lpn, {t, po: po || (a && a.po) || null}); };
+  const takeLpn = (p, lpn, q) => { const e = p.lpns.get(lpn); if(!e) return null;
+    const n = Math.min(e.q, q); e.q -= n; if(e.q <= 1e-9) p.lpns.delete(lpn); return {t:e.t, q:n, po:e.po, lpn}; };
+  const removeOut = (p, lpn, q) => { // returns pieces that left
+    if(lpn){ const r = takeLpn(p, lpn, q); if(r) return [r];
+      // LPN was unpacked earlier: take back the loose qty that came out of it
+      const out = []; for(const l of p.loose){ if(q <= 1e-9) break; if(l.from === lpn && l.q > 0){ const n = Math.min(l.q, q); out.push({t:l.t, q:n, po:l.po}); l.q -= n; q -= n; } }
+      p.loose = p.loose.filter(l => l.q > 1e-9); return out; } // otherwise it's an LPN we never saw arrive: nothing tracked to remove
+    const pieces = takeLoose(p, q); let left = q - pieces.reduce((a,x)=>a+x.q,0);
+    if(left > 1e-9){ // loose moved but we only had LPNs — take oldest LPNs
+      const ls = [...p.lpns.values()].sort((a,b) => (a.t??-1)-(b.t??-1));
+      for(const l of ls){ if(left <= 1e-9) break; const r = takeLpn(p, l.lpn, left); if(r){ pieces.push(r); left -= r.q; } }
+    }
+    return pieces;
+  };
+  const sorted = [...txs].sort((a,b) => a.t - b.t || (a.id > b.id ? 1 : -1));
+  let minT = null, maxT = null, count = 0;
+  for(const x of sorted){
+    const lo = (x.lo||"").toUpperCase(), tlo = (x.tlo||"").toUpperCase();
+    const inDock = dock.has(lo), toDock = dock.has(tlo) && tlo !== lo;
+    if(!inDock && !toDock) continue;
+    count++; if(minT==null || x.t < minT) minT = x.t; if(maxT==null || x.t > maxT) maxT = x.t;
+    const code = T[x.ty] || "";
+    if(!inDock){ // something moved from elsewhere onto the dock
+      if(x.q < 0){ const p = P(x.it, tlo); const lpn = x.cl || x.lp || x.tl;
+        if(lpn) addLpn(p, lpn, -x.q, x.t, null); else p.loose.push({t:x.t, q:-x.q, po:null}); }
+      continue;
+    }
+    const p = P(x.it, lo);
+    if(code === "P"){ if(x.q > 0 && x.tl){ const pcs = takeLoose(p, x.q); const got = pcs.reduce((a,c)=>a+c.q,0);
+        const t0 = pcs.length ? pcs.reduce((m,c)=> c.t!=null && (m==null || c.t<m) ? c.t : m, null) : x.t;
+        addLpn(p, x.tl, x.q, got >= x.q - 1e-9 ? t0 : (t0 ?? x.t), pcs.find(c=>c.po)?.po || null); }
+      continue; }
+    if(code === "S"){ if(x.q > 0 && x.lp && x.tl){ const r = takeLpn(p, x.lp, x.q);
+        addLpn(p, x.tl, x.q, r ? r.t : x.t, r ? r.po : null); }
+      continue; }
+    if(code === "U"){ if(x.q > 0 && x.lp){ const r = takeLpn(p, x.lp, x.q);
+        p.loose.push({t: r ? r.t : x.t, q: r ? r.q : x.q, po: r ? r.po : null, from: x.lp}); }
+      continue; }
+    if(x.q > 0){ const lpn = x.lp || x.tl; const po = /purchase|po/i.test(x.ty) && x.src ? String(x.src) : null;
+      if(lpn) addLpn(p, lpn, x.q, x.t, po); else p.loose.push({t:x.t, q:x.q, po}); }
+    else if(x.q < 0){ const pcs = removeOut(p, x.cl || x.lp, -x.q);
+      if(toDock){ const d = P(x.it, tlo); pcs.forEach(c => { if(c.lpn) addLpn(d, c.lpn, c.q, c.t, c.po); else d.loose.push({t:c.t, q:c.q, po:c.po}); }); } }
+  }
+  const out = [];
+  parts.forEach(p => {
+    const lp = [...p.lpns.values()].filter(l => l.q > 1e-9).sort((a,b) => (a.t??0)-(b.t??0));
+    const lq = p.loose.reduce((a,l)=>a+l.q,0);
+    if(!lp.length && lq <= 1e-9) return;
+    const looseT = p.loose.reduce((m,l)=> l.q>0 && (m==null || l.t<m) ? l.t : m, null);
+    const loosePo = p.loose.find(l=>l.po)?.po || null;
+    out.push({k:p.k, it:p.it, lo:p.lo, lpns:lp, loose: lq > 1e-9 ? {q:lq, t:looseT, po:loosePo} : null,
+      q: lp.reduce((a,l)=>a+l.q,0) + lq});
+  });
+  return {parts: out, minT, maxT, count, lpnArr};
+}
+// hours the warehouse was open between two times (Sat/Sun don't count)
+function openHours(from, to){
+  let h = 0, t = from;
+  while(t < to){ const d = new Date(t); const next = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1).getTime();
+    const end = Math.min(next, to); const wd = d.getDay(); if(wd !== 0 && wd !== 6) h += end - t; t = end; }
+  return h / 36e5;
+}
+root.DockEngine = {compute, openHours};
+if(typeof module !== "undefined") module.exports = root.DockEngine;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+(() => {
+const E = window.DockEngine;
+const REASONS = ((TK.reasons&&TK.reasons.length)?TK.reasons:["Waiting on vendor","Shipping out","Supervisor approved","Count off (over / short)","Equipment down","No location / space","PO issue","Other"])
+  .map(r => ({r, x:true}));   // the exception list, from the settings file; every reason counts as excused
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const keyOf = s => String(s).trim().replace(/[^A-Za-z0-9_\-.~:@+]/g,"_").slice(0,180) || "_";
+const money = n => "$" + Math.round(n||0).toLocaleString();
+const num = n => (Math.round((n||0)*100)/100).toLocaleString();
+const pad = n => String(n).padStart(2,"0");
+const dayId = t => { const d = new Date(t); return `d${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const fmtDay = t => t==null ? "" : new Date(t).toLocaleDateString([], {weekday:"short", month:"numeric", day:"numeric"});
+const fmtWhen = t => t==null ? "" : fmtDay(t) + " " + new Date(t).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+
+let db = null, user = null, myId = null, canWrite = true, sample = false;
+let txDays = {};        // dayId -> rows (compact arrays)
+let mfn = null;         // {at, files, rows:[{it,lo,d,q,v}]}
+let onhand = null;      // {at, files, rows:[{it,lo,d,lp,q}], seen:{key:firstSeenMs}}
+let meta = null;        // {at, by, files}
+let reasons = {};
+let names = {};
+let model = null;       // computed parts
+let costLib = {};       // item -> unit cost (from MFN UNIT_COST)
+let descLib = {};       // item -> description (built from every MFN upload + manual entries)
+let editing = null;
+let filter = "all", open = new Set();
+
+/* ---------- small helpers ---------- */
+function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),3500); }
+function banner(html, kind="info"){ $("banner").innerHTML = html ? `<div class="notice ${kind==="warn"?"warn":""}">${html}</div>` : ""; }
+function lsGet(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+if(!$("setLoc").value) $("setLoc").value = ((TK.dock&&TK.dock.locators)||["DOCK-1","DOCK-2"]).join(", ");
+function dockLocs(){ return $("setLoc").value.split(",").map(s=>s.trim().toUpperCase()).filter(Boolean); }
+const bucketOf = it => { let h = 0; for(const ch of String(it)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return "b" + (h % 20); };
+const toTx = a => ({id:a[0], t:a[1], it:a[2], lo:a[3], lp:a[4], tl:a[5], cl:a[6], q:a[7], ty:a[8], src:a[9], tlo:a[10]});
+
+/* ---------- reading files ---------- */
+const S = v => v==null || v==="" ? "" : (typeof v==="number" ? String(Math.round(v*1e6)/1e6) : String(v).trim());
+function toMs(v){
+  if(v instanceof Date && !isNaN(v)) return v.getTime();
+  if(typeof v==="number" && v>20000 && v<80000) { const d = new Date(Math.round((v-25569)*864e5)); return d.getTime() + d.getTimezoneOffset()*6e4; }
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(String(v).trim());
+  if(m){ const mo = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC".indexOf(m[2].toUpperCase())/3;
+    if(mo>=0) return new Date(+m[3], mo, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)).getTime(); }
+  const d = new Date(v); return isNaN(d) ? null : d.getTime();
+}
+function findHeader(aoa){
+  for(let i=0;i<Math.min(aoa.length,25);i++){ const r = (aoa[i]||[]).map(c => String(c).trim().toLowerCase());
+    if(r.includes("transaction id") && r.includes("item")) return {i, kind:"tx"};
+    if(r.includes("lpn") && r.includes("on-hand") && r.includes("locator")) return {i, kind:"onhand"};
+    if(r.includes("item") && (r.includes("locator") || r.some(c=>c.startsWith("quant")))) return {i, kind:"mfn"}; }
+  return null;
+}
+async function readFiles(files){
+  const res = {tx:[], mfn:[], txFiles:[], mfnFiles:[], oh:[], ohFiles:[], bad:[], desc:{}, cost:{}};
+  const locs = new Set(dockLocs());
+  for(const f of files){
+    let wb;
+    try{
+      if(/\.(tsv|txt)$/i.test(f.name)){
+        // Oracle's tab-separated export (the dock transaction log): split it ourselves so dates stay as written.
+        const aoa = (await f.text()).split(/\r?\n/).filter(l => l.trim()).map(l => l.split("\t"));
+        wb = {SheetNames:["Sheet1"], Sheets:{Sheet1: XLSX.utils.aoa_to_sheet(aoa)}};
+      } else wb = XLSX.read(await f.arrayBuffer(), {type:"array", cellDates:true});
+    }catch(e){ res.bad.push(f.name); continue; }
+    let used = false, bestM = null;
+    for(const n of wb.SheetNames){
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:""});
+      const h = findHeader(aoa); if(!h) continue;
+      const H = aoa[h.i].map(c => String(c).trim().toLowerCase());
+      const col = (...names) => { for(const nm of names){ const i = H.indexOf(nm); if(i>=0) return i; } return -1; };
+      const body = aoa.slice(h.i+1);
+      if(h.kind==="onhand"){
+        const c = {it:col("item"), d:col("item description","description"), lo:col("locator"), lp:col("lpn"), q:col("on-hand","on hand")};
+        body.forEach(r => { const it = S(r[c.it]); if(!it) return; const d = c.d>=0 ? S(r[c.d]).slice(0,90) : ""; if(d) res.desc[it] = d;
+          const lo = S(r[c.lo]).toUpperCase(); if(!locs.has(lo)) return;
+          const q = Number(String(r[c.q]).replace(/,/g,"")) || 0; if(q <= 0) return;
+          res.oh.push({it, lo, d, lp: S(r[c.lp]), q}); });
+        res.ohFiles.push(f.name); used = true; break;
+      }
+      if(h.kind==="tx"){
+        const c = {it:col("item"), lo:col("locator"), lp:col("lpn"), tl:col("transfer lpn"), cl:col("content lpn"), tlo:col("transfer locator"),
+          t:col("transaction date"), id:col("transaction id"), q:col("transaction quantity","primary quantity"), ty:col("transaction type"), src:col("source")};
+        if(c.id<0 || c.t<0 || c.q<0) continue;
+        body.forEach(r => {
+          const lo = S(r[c.lo]).toUpperCase(), tlo = c.tlo>=0 ? S(r[c.tlo]).toUpperCase() : "";
+          if(!locs.has(lo) && !locs.has(tlo)) return;
+          const t = toMs(r[c.t]), id = S(r[c.id]); if(t==null || !id) return;
+          res.tx.push([id, t, S(r[c.it]), lo, c.lp>=0?S(r[c.lp]):"", c.tl>=0?S(r[c.tl]):"", c.cl>=0?S(r[c.cl]):"",
+            Number(r[c.q])||0, S(r[c.ty]), c.src>=0?S(r[c.src]):"", tlo]);
+        });
+        res.txFiles.push(f.name); used = true; break;
+      } else {
+        const c = {it:col("item"), d:col("description","item description"), lo:col("locator"), q:H.findIndex(x=>/^(quant|qty|on ?hand)/.test(x)),
+          v:H.findIndex(x=>/^extend|ext.*(cost|value)|total.*(cost|value)/.test(x)), uc:H.findIndex(x=>/^unit.?(cost|price)|^avg.*cost|^item.?cost/.test(x))};
+        if(c.lo<0 || c.it<0) continue;
+        const rows = [], desc = {}, cost = {};
+        body.forEach(r => { const it0 = S(r[c.it]), d0 = c.d>=0 ? S(r[c.d]).slice(0,90) : ""; if(it0 && d0) desc[it0] = d0;
+          if(it0 && c.uc>=0){ const u = Number(String(r[c.uc]).replace(/[,$]/g,"")); if(isFinite(u) && String(r[c.uc]).trim()!=="") cost[it0] = Math.round(u*10000)/10000; }
+          const lo = S(r[c.lo]).toUpperCase(); if(!locs.has(lo)) return;
+          const q = Number(String(r[c.q]).replace(/[,$]/g,""))||0; if(q<=0) return;
+          rows.push({it:S(r[c.it]), lo, d:c.d>=0?S(r[c.d]).slice(0,90):"", q, v:c.v>=0?(Number(String(r[c.v]).replace(/[,$]/g,""))||0):0}); });
+        // keep the tab with the most dock rows (the MET tab)
+        if(!bestM || rows.length > bestM.rows.length) bestM = {rows, desc, cost, name: f.name + (wb.SheetNames.length>1?` (${n} tab)`:"")};
+      }
+    }
+    if(bestM){ Object.assign(res.desc, bestM.desc); Object.assign(res.cost, bestM.cost); }
+    if(!used && bestM && bestM.rows.length){ res.mfn.push(...bestM.rows); res.mfnFiles.push(bestM.name); used = true; }
+    if(!used) res.bad.push(f.name);
+  }
+  return res;
+}
+
+/* ---------- saving ---------- */
+async function handleFiles(files, expect){
+  if(!files.length) return;
+  if(!canWrite){ toast("You can view this list but not upload to it."); return; }
+  if(sample){ sample = false; txDays = {}; mfn = null; onhand = null; meta = null; reasons = {}; await loadSaved(); }
+  let r; try{ r = await readFiles(files); }catch(e){ console.error(e); banner("Couldn't read that file.", "warn"); return; }
+  const msgs = [];
+  const got = {onhand: r.ohFiles.length, tx: r.txFiles.length, mfn: r.mfnFiles.length};
+  const label = {onhand:"On-hand by LPN", tx:"Transaction history", mfn:"MFN report"};
+  if(expect && !got[expect] && (got.onhand || got.tx || got.mfn)){
+    const was = Object.keys(got).filter(k => got[k]).map(k => label[k]).join(" and ");
+    msgs.push(`Heads up: that file looks like the <b>${was}</b>, not the ${label[expect]} — it was loaded as the ${was}.`); }
+  if(r.bad.length) msgs.push(`Didn't recognize: ${esc(r.bad.join(", "))}. Use the on-hand by LPN, transaction history or MFN report exports.`);
+  let added = 0, dup = 0;
+  if(r.txFiles.length){
+    const byDay = {}; r.tx.forEach(a => (byDay[dayId(a[1])] ||= []).push(a));
+    for(const [d, rows] of Object.entries(byDay)){
+      const cur = txDays[d] || []; const seen = new Set(cur.map(a=>a[0]));
+      const fresh = rows.filter(a => !seen.has(a[0]) && seen.add(a[0]));
+      dup += rows.length - fresh.length; if(!fresh.length) continue;
+      const next = cur.concat(fresh); added += fresh.length; txDays[d] = next;
+      if(db){ try{ await db.doc("tx/"+d).set({rows: next.map(a=>JSON.stringify(a))}); }
+        catch(e){ msgs.push(e && e.code==="invalid_argument" ? "You have view-only access, so transactions weren't saved." : "Some transactions couldn't be saved — try the upload again."); break; } }
+    }
+    if(!db) lsSet("dockPri.tx", txDays);
+    pruneOld();
+  }
+  if(r.ohFiles.length){
+    const now = Date.now(), old = (onhand && onhand.seen) || {}, seen = {};
+    r.oh.forEach(x => { const sk = x.it+"@"+x.lo+"|"+(x.lp||"loose"); seen[sk] = old[sk] ?? now; });
+    onhand = {at: now, files: r.ohFiles.join(", "), rows: r.oh, seen};
+    if(db){ try{ await db.doc("dock/onhand").set(onhand); }catch(e){ msgs.push(e && e.code==="invalid_argument" ? "The on-hand report couldn't be saved (view-only access or too big)." : "The on-hand report couldn't be saved — try again."); } }
+    else lsSet("dockPri.onhand", onhand);
+  }
+  if(r.mfnFiles.length){
+    mfn = {at: Date.now(), files: r.mfnFiles.join(", "), rows: r.mfn};
+    if(db){ try{ await db.doc("dock/mfn").set(mfn); }catch(e){ msgs.push("The MFN report couldn't be saved."); } } else lsSet("dockPri.mfn", mfn);
+  }
+  if(Object.keys(r.cost).length) await saveCosts(r.cost);
+  if(Object.keys(r.desc).length){ const n = await saveDescs(r.desc); if(n) msgs.length || toast(`Saved descriptions for ${n.toLocaleString()} items`); }
+  if(r.txFiles.length || r.mfnFiles.length || r.ohFiles.length){
+    meta = {at: Date.now(), by: myId || null, files: [...r.ohFiles, ...r.txFiles, ...r.mfnFiles].join(", ")};
+    if(db){ try{ await db.doc("dock/meta").set(meta); }catch(e){} } else lsSet("dockPri.meta", meta);
+    const bits = [];
+    if(r.txFiles.length) bits.push(`${added.toLocaleString()} new transactions${dup?` (${dup.toLocaleString()} already loaded)`:""}`);
+    if(r.ohFiles.length) bits.push(`On-hand: ${r.oh.length} dock lines`);
+    if(r.mfnFiles.length) bits.push(`MFN report: ${r.mfn.length} dock lines`);
+    toast(bits.join(" · "));
+  }
+  banner(msgs.join(" "), "warn");
+  recompute();
+  if(!msgs.length && model && model.unknown){ const fresh = model.parts.flatMap(p => p.pieces).filter(x => x.seen && !pieceOver(x));
+    const stale = model.maxT && onhand && E.openHours(model.maxT, onhand.at) > 16 ? ` Your transaction history only goes up to <b>${fmtWhen(model.maxT)}</b> — uploading newer transactions will fill in anything received since then.` : "";
+    if(fresh.length) banner(`<b>${fresh.length} pallet${fresh.length>1?"s / lines":" / line"} on the on-hand report ${fresh.length>1?"have":"has"} no receipt in the loaded transaction history</b>, so the tool counts ${fresh.length>1?"them":"it"} from today.${stale} Anything that's really been sitting a while, you can flag now. <button class="btn" id="markOld" type="button" style="margin-left:6px">Flag as over 24h</button> <button class="btn link" id="markNo" type="button">They're new</button>`, "info"); }
+}
+async function markUnknownOld(){
+  const fresh = model.parts.flatMap(p => p.pieces).filter(x => x.seen && !pieceOver(x));
+  const t = Date.now() - 4*864e5; onhand.seen = {...(onhand.seen||{})}; fresh.forEach(x => onhand.seen[x.sk] = t);
+  if(db){ try{ await db.doc("dock/onhand").set(onhand); }catch(e){ toast("Couldn't save that."); } } else lsSet("dockPri.onhand", onhand);
+  banner(""); recompute();
+}
+async function saveLib(coll, lib, map, lsKey){
+  const byB = {}; let changed = 0;
+  for(const [it, d] of Object.entries(map)){ if(d==null || d==="" || lib[it] === d) continue; (byB[bucketOf(it)] ||= {})[it] = d; changed++; }
+  for(const [b, add] of Object.entries(byB)){
+    const cur = {}; Object.keys(lib).forEach(it => { if(bucketOf(it) === b) cur[it] = lib[it]; });
+    Object.assign(cur, add); Object.assign(lib, add);
+    if(db){ try{ await db.doc(coll+"/"+b).set({m: cur}); }catch(e){ if(e && e.code==="quota_exceeded") toast("Saved item list is full."); } }
+  }
+  if(!db) lsSet(lsKey, lib);
+  return changed;
+}
+const saveDescs = map => saveLib("desc", descLib, map, "dockPri.desc");
+const saveCosts = map => saveLib("cost", costLib, map, "dockPri.cost");
+async function pruneOld(){
+  const cutoff = dayId(Date.now() - 180*864e5);
+  for(const d of Object.keys(txDays)) if(d < cutoff){ delete txDays[d]; if(db){ try{ await db.doc("tx/"+d).delete(); }catch(e){} } }
+}
+
+/* ---------- model ---------- */
+function valOf(it, pieces, m){ const q = pieces.reduce((a,x)=>a+x.q,0); if(costLib[it] != null) return q * costLib[it]; return m ? m.v : 0; }
+function recompute(){
+  const txs = []; Object.values(txDays).forEach(rows => rows.forEach(a => txs.push(toTx(a))));
+  const res = E.compute(txs, dockLocs());
+  const parts = new Map(res.parts.map(p => [p.k, p]));
+  const mf = mfn && mfn.rows.length ? new Map() : null;
+  if(mf) mfn.rows.forEach(r => { const k = r.it+"@"+r.lo; const e = mf.get(k); if(e){ e.q += r.q; e.v += r.v; } else mf.set(k, {...r}); });
+  const out = [];
+  if(onhand && onhand.rows.length){ // the on-hand report is the real dock list; transactions supply the dates
+    const groups = new Map(), unknown = [];
+    onhand.rows.forEach(r => { const k = r.it+"@"+r.lo; let g = groups.get(k); if(!g){ g = {it:r.it, lo:r.lo, d:r.d, rows:[]}; groups.set(k, g); } g.rows.push(r); });
+    // Excel rounds long numeric LPNs (e.g. 00184351008256275461 -> 184351008256275000), so match on the first 15 digits
+    const norm = l => { const t = String(l).trim(); if(!/^\d+$/.test(t)) return t.toUpperCase(); const z = t.replace(/^0+/, ""); return z.length > 15 ? z.slice(0,15)+"~" : z; };
+    const arr = new Map(); res.lpnArr.forEach((v, lpn) => { const n = norm(lpn); if(!arr.has(n)) arr.set(n, {...v, full: lpn}); });
+    const seenAt = sk => (onhand.seen && onhand.seen[sk] != null) ? onhand.seen[sk] : onhand.at;
+    groups.forEach((g, k) => {
+      const e = parts.get(k), m = mf ? mf.get(k) : null, pieces = []; let loose = 0;
+      let poolQ = e && e.loose ? e.loose.q : 0; // received-but-unpacked qty from the history, used to date LPNs packed later
+      const fromPool = q => { if(poolQ <= 1e-9) return null; poolQ = Math.max(0, poolQ - q); return {t:e.loose.t, po:e.loose.po}; };
+      g.rows.forEach(r => { if(!r.lp){ loose += r.q; return; } });
+      g.rows.forEach(r => { if(!r.lp) return;
+        const a = arr.get(norm(r.lp)); const show = a ? a.full : r.lp;
+        if(a && a.t != null){ pieces.push({lpn:show, q:r.q, t:a.t, po:a.po}); return; }
+        const pl = fromPool(r.q); if(pl){ pieces.push({lpn:show, q:r.q, t:pl.t, po:pl.po}); return; }
+        const sk = k+"|"+r.lp; pieces.push({lpn:show, q:r.q, t:seenAt(sk), po:null, seen:true, sk}); unknown.push(sk); });
+      if(loose > 0){ const n = Math.min(poolQ, loose);
+        if(n > 0) pieces.push({lpn:"", q:n, t:e.loose.t, po:e.loose.po});
+        if(loose - n > 1e-9){ const sk = k+"|loose"; pieces.push({lpn:"", q:loose-n, t:seenAt(sk), po:null, seen:true, sk}); unknown.push(sk); } }
+      out.push({k: keyOf(k), it:g.it, lo:g.lo, d: g.d || (m && m.d) || descLib[g.it] || "", v: valOf(g.it, pieces, m), pieces, q: pieces.reduce((a,x)=>a+x.q,0)});
+    });
+    model = {parts: out, minT: res.minT, maxT: res.maxT, count: res.count, txTotal: txs.length, unknown};
+    render(); return;
+  }
+  const keys = new Set([...parts.keys(), ...(mf ? mf.keys() : [])]);
+  keys.forEach(k => {
+    const p = parts.get(k), m = mf ? mf.get(k) : null;
+    let pieces = p ? [...p.lpns.map(l => ({lpn:l.lpn, q:l.q, t:l.t, po:l.po})), ...(p.loose ? [{lpn:"", q:p.loose.q, t:p.loose.t, po:p.loose.po}] : [])] : [];
+    if(mf){
+      const target = m ? m.q : 0; let tracked = pieces.reduce((a,x)=>a+x.q,0);
+      if(tracked > target + 1e-9){ // MFN says less is here: assume the oldest went first
+        pieces.sort((a,b) => (a.t??-1)-(b.t??-1)); let cut = tracked - target;
+        for(const x of pieces){ if(cut<=1e-9) break; const n = Math.min(x.q, cut); x.q -= n; cut -= n; }
+        pieces = pieces.filter(x => x.q > 1e-9);
+      } else if(target > tracked + 1e-9){ pieces.push({lpn:"", q: target - tracked, t: null, po: null, early: true}); }
+    }
+    if(!pieces.length) return;
+    const [it, lo] = k.split("@");
+    out.push({k: keyOf(k), it, lo, d: (m && m.d) || descLib[it] || "", v: valOf(it, pieces, m), pieces, q: pieces.reduce((a,x)=>a+x.q,0)});
+  });
+  model = {parts: out, minT: res.minT, maxT: res.maxT, count: res.count, txTotal: txs.length};
+  render();
+}
+/* Shift clock. A pallet is due 24 hours after it's received, with Saturday and Sunday skipped (the same rule as Dock to Stock).
+   Since nobody works overnight, that's the same time on the next work day. "Shift hours left" counts only the hours
+   between now and then that fall inside the shift, so it shows how much working time is really left. */
+function hm(v, d){ const m = /^(\d{1,2}):(\d{2})/.exec(String(v||"")); return m ? (+m[1])*60 + (+m[2]) : d; }
+function shift(){ const s = hm($("setShiftS").value, 420), e = hm($("setShiftE").value, 960); return e > s ? {s, e} : {s:420, e:960}; }
+const isWorkday = d => d.getDay() !== 0 && d.getDay() !== 6;
+const at = (d, mins) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, mins).getTime();
+function dueAt(t){ let left = 24*36e5, x = t;
+  for(let i=0;i<30;i++){ const d = new Date(x), eod = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1).getTime();
+    if(!isWorkday(d)){ x = eod; continue; } if(eod - x >= left) return x + left; left -= eod - x; x = eod; }
+  return x; }
+function shiftHours(a, b){ if(b <= a) return 0; const {s, e} = shift(); let h = 0;
+  for(let d = new Date(new Date(a).setHours(0,0,0,0)); d.getTime() < b; d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1)){
+    if(!isWorkday(d)) continue; const lo = Math.max(a, at(d, s)), hi = Math.min(b, at(d, e)); if(hi > lo) h += hi - lo; }
+  return h / 36e5; }
+// End of the shift that's on now, or the next one if it's after hours or the weekend.
+function shiftEnd(now){ const {e} = shift(); let d = new Date(now);
+  for(let i=0;i<8;i++){ if(isWorkday(d) && at(d, e) > now) return at(d, e); d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1); }
+  return now; }
+function pieceOver(x){ return x.t==null || Date.now() >= dueAt(x.t); }
+function pieceDueSoon(x){ return x.t!=null && !pieceOver(x) && dueAt(x.t) <= shiftEnd(Date.now()); }
+const fmtHrs = h => h < 0.05 ? "under 5 min" : h < 1 ? `${Math.max(5, Math.round(h*60/5)*5)} min` : `${Math.round(h*2)/2} shift hr${Math.round(h*2)/2===1?"":"s"}`;
+function dueLine(i){
+  if(i.st.c==="exc" || i.nextDue==null) return "";
+  const now = Date.now();
+  if(i.anyOver) return `<div class="dueby late">Was due ${fmtWhen(i.firstDue)}</div>`;
+  const left = shiftHours(now, i.nextDue);
+  return `<div class="dueby ${i.dueSoon?"soon":""}">Due ${fmtWhen(i.nextDue)} · ${fmtHrs(left)} left</div>`;
+}
+function excused(k){ const r = reasons[k]; return !!(r && r.r && r.x); }
+function partInfo(p){
+  const lp = p.pieces.filter(x=>x.lpn), overL = lp.filter(pieceOver).length;
+  const anyOver = p.pieces.some(pieceOver), dueSoon = !anyOver && p.pieces.some(pieceDueSoon);
+  const dues = p.pieces.filter(x=>x.t!=null).map(x=>dueAt(x.t)), firstDue = dues.length ? Math.min(...dues) : null;
+  const nextDue = p.pieces.filter(x=>x.t!=null && !pieceOver(x)).map(x=>dueAt(x.t)).sort((a,b)=>a-b)[0] ?? firstDue;
+  const dueN = p.pieces.filter(x=>x.lpn && pieceDueSoon(x)).length;
+  const oldest = p.pieces.reduce((m,x)=> x.t==null ? -Infinity : (m==null || x.t<m ? x.t : m), null);
+  const oldSeen = p.pieces.some(x => x.seen && x.t === oldest);
+  const st = excused(p.k) ? {c:"exc", label:"Excused", rank:3} : anyOver ? {c:"crit", label:"Over 24h", rank:0} : dueSoon ? {c:"due", label:"Due this shift", rank:1} : {c:"ok", label:"New", rank:2};
+  return {lp: lp.length, overL, anyOver, dueSoon, dueN, firstDue, nextDue, oldest, oldSeen, st, loose: p.pieces.filter(x=>!x.lpn).reduce((a,x)=>a+x.q,0)};
+}
+
+/* ---------- reasons ---------- */
+const pending = {};
+async function saveReason(k, patch){
+  const p = model.parts.find(x=>x.k===k) || {};
+  const cur = Object.assign({r:"",n:"",x:false}, reasons[k]||{}, patch, {by: myId||null, at: Date.now(), item: p.it||"", loc: p.lo||""});
+  reasons[k] = cur;
+  if(sample){ render(); return; }
+  if(!db){ lsSet("dockPri.reasons2", reasons); render(); return; }
+  if(pending[k]){ pending[k].next = cur; return; }
+  pending[k] = {}; let body = cur;
+  while(body){
+    try{ await db.doc("reasons/"+k).set(body); }
+    catch(e){ toast(e && e.code==="invalid_argument" ? "You have view-only access — reasons can't be saved." : "Couldn't save that reason — check your connection."); break; }
+    body = pending[k].next; pending[k].next = null;
+  }
+  delete pending[k];
+}
+
+/* ---------- render ---------- */
+function counts(){
+  const c = {parts:0, pal:0, overPal:0, overParts:0, need:0, exc:0, looseParts:0, overV:0, dueParts:0, duePal:0};
+  model.parts.forEach(p => { const i = partInfo(p); c.parts++; c.pal += i.lp; if(i.loose) c.looseParts++;
+    if(i.st.c==="due"){ c.dueParts++; c.duePal += i.dueN; }
+    if(i.st.c==="exc") c.exc++; else if(i.st.c==="crit"){ c.overParts++; c.overPal += i.overL; c.overV += p.v; if(!(reasons[p.k]&&reasons[p.k].r)) c.need++; } });
+  return c;
+}
+function hvThreshold(){ const n = Number(String($("setHV").value).replace(/[,$\s]/g,"")); return isFinite(n) && n > 0 ? n : Infinity; }
+function isHV(p){ return p.v >= hvThreshold(); }
+// FIFO: oldest first; high-value parts count as one extra workday old
+function score(p, i){
+  const now = Date.now();
+  const age = i.oldest === -Infinity ? (model.minT ? E.openHours(model.minT, now) + 24 : 1e4) : (i.oldest ? E.openHours(i.oldest, now) : 0);
+  return age + (isHV(p) ? 24 : 0);
+}
+const prioSort = (a, b) => a.i.st.rank - b.i.st.rank || score(b.p, b.i) - score(a.p, a.i) || b.p.v - a.p.v;
+function prioNumbers(){ const m = new Map(); model.parts.map(p => ({p, i: partInfo(p)})).filter(x => x.i.st.c !== "exc").sort(prioSort).forEach((x, n) => m.set(x.p.k, n+1)); return m; }
+function visible(){
+  const q = $("q").value.trim().toLowerCase(), showExc = $("showExc").checked;
+  return model.parts.map(p => ({p, i: partInfo(p)})).filter(({p,i}) => {
+    const rs = reasons[p.k]||{};
+    if(filter==="over" && i.st.c!=="crit") return false;
+    if(filter==="need" && !(i.st.c==="crit" && !rs.r)) return false;
+    if(filter==="exc" && i.st.c!=="exc") return false;
+    if(filter==="due" && i.st.c!=="due") return false;
+    if(filter==="new" && i.st.c!=="ok") return false;
+    if(filter!=="exc" && !showExc && i.st.c==="exc") return false;
+    if(q && ![p.it, p.d, p.lo, rs.r, rs.n, ...p.pieces.map(x=>x.lpn+" "+(x.po||""))].join(" ").toLowerCase().includes(q)) return false;
+    return true;
+  }).sort(prioSort);
+}
+function render(){
+  const has = model && model.parts.length;
+  const loaded = model && (model.txTotal || (mfn && mfn.rows.length) || (onhand && onhand.rows.length));
+  $("toolbar").hidden = !has; $("listCard").hidden = !has;
+  dzStatus();
+  $("sampleBtn").hidden = !!loaded && !sample;
+  $("clearTop").hidden = !(loaded || sample) || (!canWrite && !sample);
+  // coverage line
+  const cov = [];
+  if(meta) cov.push(`Last upload ${fmtWhen(meta.at)}${meta.by && names[meta.by] ? " by "+esc(names[meta.by]) : ""}`);
+  else cov.push("Drop this morning's reports below to build the list.");
+  $("lastUpload").innerHTML = sample ? "<b>Sample data</b> — nothing is saved" : cov.join(" &nbsp;·&nbsp; ");
+  if(!has){ $("tiles").innerHTML = ""; $("tiles").hidden = true; if(loaded) $("rows").innerHTML = ""; return; }
+  $("tiles").hidden = false;
+  const c = counts(); const hasV = model.parts.some(p=>p.v);
+  $("tiles").innerHTML = [
+    ["in", c.parts, "Parts on the dock", `${c.pal} pallets (LPNs)${c.looseParts?` · ${c.looseParts} with loose qty`:""}`],
+    ["bad", c.overPal, "Pallets over 24 hrs", `on ${c.overParts} part${c.overParts===1?"":"s"}${hasV&&c.overV?` · ${money(c.overV)}`:""}`],
+    ["due", c.duePal || c.dueParts, "Due this shift", `${c.duePal ? `pallets on ${c.dueParts} part${c.dueParts===1?"":"s"}` : `part${c.dueParts===1?"":"s"}`} · ${Math.round(shiftHours(Date.now(), shiftEnd(Date.now()))*2)/2} hrs left in the shift`],
+    ["bad", c.need, "Need a reason", "over 24 hrs with no reason picked yet"],
+    ["exc", c.exc, "Excused", "OK to sit — counted as good"],
+  ].map(([cls,v,l,d]) => `<div class="stat ${cls}"><span class="lbl">${l}</span><span class="v">${v}</span><span class="d">${d}</span></div>`).join("");
+  const nNew = model.parts.filter(p => partInfo(p).st.c==="ok").length;
+  $("filterSeg").innerHTML = [["all","All",c.parts],["over","Over 24 hrs",c.overParts],["due","Due this shift",c.dueParts],["need","Need a reason",c.need],["new","New",nNew],["exc","Excused",c.exc]]
+    .map(([k,l,n]) => `<button type="button" data-f="${k}" aria-pressed="${filter===k}">${l}<span class="n">${n}</span></button>`).join("");
+  $("thead").innerHTML = `<tr><th title="Oldest first (FIFO). High-value parts count as one extra workday old.">Priority</th><th>Item</th><th>Locator</th><th>Pallets</th><th class="n">Qty</th>${hasV?`<th class="n">Value</th>`:""}<th>Oldest<br>received</th><th style="min-width:210px">Why is it still here?</th><th style="min-width:210px">Note</th></tr>`;
+  const cols = hasV ? 9 : 8;
+  const rows = visible();
+  if(!rows.length){ $("rows").innerHTML = `<tr><td colspan="${cols}" class="empty">${filter==="need"?"Every part over 24 hours has a reason. 👍":"Nothing here for this filter."}</td></tr>`; return; }
+  const dis = canWrite ? "" : "disabled"; const pn = prioNumbers();
+  const thr = hvThreshold(); $("orderNote").textContent = `Oldest first${isFinite(thr) ? ` · $${thr.toLocaleString()}+ parts move up` : ""}${hasV ? "" : " · drop an MFN report once to add costs"}`;
+  $("rows").innerHTML = rows.map(({p,i}) => {
+    const rs = reasons[p.k]||{}, isOpen = open.has(p.k), needs = i.st.c==="crit" && !rs.r;
+    // a reason saved before the list changed still shows, so nothing silently changes
+    const opts = `<option value="">— pick a reason —</option>` + (rs.r&&!REASONS.some(o=>o.r===rs.r)?`<option selected>${esc(rs.r)}</option>`:"") + REASONS.map(o => `<option ${rs.r===o.r?"selected":""}>${esc(o.r)}</option>`).join("");
+    const who = rs.at ? `<div class="who">${esc(names[rs.by]||"Updated")} · ${fmtWhen(rs.at)}</div>` : "";
+    const palTxt = i.lp ? `<span class="pal">${i.lp}</span> LPN${i.lp>1?"s":""}` : `<span class="who" style="font-size:12px">No LPN</span>`;
+    const overTxt = i.st.c==="crit" && i.lp ? `<div class="who">${i.overL} over 24h</div>` : "";
+    const looseTxt = i.loose ? `<div class="who">+ ${num(i.loose)} not on an LPN</div>` : "";
+    const oldTxt = i.oldest===-Infinity ? `Before ${fmtDay(model.minT) || "loaded history"}` : i.oldSeen ? `First seen ${fmtDay(i.oldest)}<div class="who">no receipt found</div>` : fmtDay(i.oldest);
+    const main = `<tr class="row s-${i.st.c}" data-k="${esc(p.k)}">
+      <td>${pn.has(p.k)?`<div class="prio">#${pn.get(p.k)}</div>`:""}<span class="st ${i.st.c}">${i.st.label}</span>${dueLine(i)}${isHV(p)?`<div><span class="hv">$ High value</span></div>`:""}</td>
+      <td><div class="mono">${esc(p.it)}</div>${editing===p.it ? `<input class="descin" value="${esc(p.d)}" placeholder="Type a description, press Enter" style="width:100%;font:inherit;font-size:12px;padding:4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)">`
+        : p.d ? `<div class="desc">${esc(p.d)}${canWrite?` <button class="agebtn" data-desc="1" type="button" title="Edit description">edit</button>`:""}</div>` : (canWrite?`<button class="agebtn" data-desc="1" type="button">+ Add description</button>`:"")}</td>
+      <td class="mono">${esc(p.lo)}</td>
+      <td>${palTxt}${overTxt}${looseTxt}<div style="margin-top:4px"><button class="xbtn" data-tog="1" type="button">${isOpen?"▾ Hide":"▸ Show"} ${i.lp?"LPNs":"detail"}</button></div></td>
+      <td class="mono n">${num(p.q)}</td>
+      ${hasV?`<td class="mono n">${costLib[p.it]!=null || p.v ? money(p.v) : `<span class="who" title="No cost on file yet — drop an MFN report">—</span>`}</td>`:""}
+      <td>${oldTxt}</td>
+      <td><select class="rsel ${needs?"need":""}" ${dis}>${opts}</select>
+        ${rs.r?`<label class="xc"><input type="checkbox" class="xchk" ${rs.x?"checked":""} ${dis}> Counts as good (excused)</label>`:""}${who}</td>
+      <td><textarea class="note" placeholder="Details, who's on it, ETA…" ${dis}>${esc(rs.n||"")}</textarea></td></tr>`;
+    if(!isOpen) return main;
+    const ps = [...p.pieces].sort((a,b) => (a.t??-1)-(b.t??-1));
+    const nOver = ps.filter(pieceOver).length;
+    const det = ps.map(x => { const o = pieceOver(x);
+      const when = x.t==null ? "Before "+(fmtDay(model.minT)||"loaded history") : x.seen ? `First seen ${fmtDay(x.t)} · no receipt found` : `Rec'd ${fmtWhen(x.t)} · due ${fmtWhen(dueAt(x.t))}`;
+      return `<div class="lpn ${o?"nd":""}"><span>${x.lpn ? esc(x.lpn) : (x.early?"On hand before history":"Loose (no LPN)")}<small>${when}${x.po?` · PO ${esc(x.po)}`:""}</small></span><span class="q">${num(x.q)}</span></div>`; }).join("");
+    return main + `<tr class="detail"><td colspan="${cols}"><div class="dline"><b>${esc(p.it)}</b> · ${ps.length} line${ps.length===1?"":"s"} on the dock · <span style="color:var(--bad);font-weight:600">${nOver} over 24 hrs</span> · oldest first. Red = over 24 hrs.</div><div class="lpns">${det}</div></td></tr>`;
+  }).join("");
+}
+
+/* ---------- copy / export ---------- */
+function summaryText(){
+  const c = counts(); const hasV = model.parts.some(p=>p.v);
+  const L = [`Dock Priority — ${fmtWhen(Date.now())}`,
+    `Parts on dock: ${c.parts} (${c.pal} pallets) | Pallets over 24h: ${c.overPal} on ${c.overParts} parts${hasV?` (${money(c.overV)})`:""} | No reason yet: ${c.need} | Excused: ${c.exc}`, ""];
+  const pn = prioNumbers(); const rows = model.parts.map(p => ({p, i: partInfo(p)})).filter(({i}) => i.st.c==="crit").sort(prioSort);
+  if(rows.length){ L.push("OVER 24 HOURS (priority order):"); rows.forEach(({p,i}) => { const rs = reasons[p.k]||{};
+    L.push(`#${pn.get(p.k)} ${p.it}${p.d?` ${p.d.slice(0,35)}`:""} @ ${p.lo} – ${i.lp?`${i.overL} of ${i.lp} pallets`:`qty ${num(p.q)}`}${hasV?` – ${money(p.v)}`:""} – ${rs.r||"NO REASON"}${rs.n?`: ${rs.n}`:""}`); }); }
+  const due = model.parts.map(p => ({p, i: partInfo(p)})).filter(({i}) => i.st.c==="due").sort(prioSort);
+  if(due.length){ L.push("", "DUE THIS SHIFT:"); due.forEach(({p,i}) => L.push(`#${pn.get(p.k)} ${p.it}${p.d?` ${p.d.slice(0,35)}`:""} @ ${p.lo} – due ${fmtWhen(i.nextDue)}`)); }
+  const ex = model.parts.filter(p => excused(p.k));
+  if(ex.length){ L.push("", "EXCUSED:"); ex.forEach(p => { const rs = reasons[p.k]; L.push(`• ${p.it} @ ${p.lo} – ${rs.r}${rs.n?`: ${rs.n}`:""}`); }); }
+  return L.join("\n");
+}
+async function downloadXlsx(){
+  const dl = await toolkitUse("downloads"); if(!dl) return;
+  const rows = visible();
+  const pn = prioNumbers();
+  const parts = rows.map(({p,i}) => { const rs = reasons[p.k]||{}; return {Priority: pn.get(p.k) || "", Status:i.st.label, "High value": isHV(p)?"Yes":"", Item:p.it, Description:p.d, Locator:p.lo, Pallets:i.lp, "Pallets over 24h":i.overL, "Due by": i.nextDue?new Date(i.nextDue):"",
+    Qty:p.q, Value:p.v, "Oldest received": i.oldest===-Infinity ? "Before loaded history" : (i.oldest?new Date(i.oldest):""), Reason:rs.r||"", "Counts as good":rs.r?(rs.x?"Yes":"No"):"", Note:rs.n||""}; });
+  const lpns = []; rows.forEach(({p}) => p.pieces.forEach(x => lpns.push({Item:p.it, Locator:p.lo, LPN:x.lpn||(x.early?"(before loaded history)":"(no LPN)"), Qty:x.q,
+    Received: x.t==null?"":new Date(x.t), PO:x.po||"", Status: pieceOver(x)?"Over 24h":"Under 24h"})));
+  const wb = XLSX.utils.book_new();
+  const a = XLSX.utils.json_to_sheet(parts); a["!cols"]=[8,10,10,36,12,8,14,10,12,18,26,12,40,10].map(w=>({wch:w}));
+  const b = XLSX.utils.json_to_sheet(lpns); b["!cols"]=[10,12,24,8,18,12,10].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, a, "Parts"); XLSX.utils.book_append_sheet(wb, b, "LPNs");
+  const out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+  try{ await dl.save({filename:`Dock-Priority-${new Date().toISOString().slice(0,10)}.xlsx`, data:new Blob([out], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})}); }
+  catch(e){ toast("Download cancelled."); }
+}
+
+/* ---------- sample ---------- */
+function loadSample(){
+  sample = true; onhand = null; const now = Date.now(), H = 36e5, rows = []; let id = 1;
+  const L = dockLocs(), A = L[0] || "DOCK-1", B = L[1] || A;   // made-up parts on your own dock locators
+  const add = (hAgo, it, lo, q, ty, o={}) => rows.push([String(id++), now - hAgo*H, it, lo, o.lp||"", o.tl||"", o.cl||"", q, ty, o.src||"", o.tlo||""]);
+  for(let n=0;n<6;n++) add(76, "100100", A, 300, "PO Receipt", {lp:"LPN-1"+(100+n), tl:"LPN-1"+(100+n), src:"9000001"});
+  add(75, "100100", A, -300, "Subinventory Transfer", {cl:"LPN-1100", tlo:"STOCK-11"});
+  add(52, "100200", A, 432, "PO Receipt", {src:"9000002"});
+  for(let n=0;n<6;n++){ add(51.9, "100200", A, 72, "Container Pack", {tl:"LPN-2"+(10+n)}); add(51.9, "100200", A, -72, "Container Pack", {tl:"LPN-2"+(10+n)}); }
+  add(30, "100200", A, -72, "Move Order Transfer", {cl:"LPN-210", tlo:"STOCK-12"});
+  add(28, "100300", A, 60, "PO Receipt", {src:"9000003"});
+  add(6, "100400", B, 42, "PO Receipt", {src:"9000004"});
+  add(3, "100500", B, 2, "PO Receipt", {src:"9000004"});
+  txDays = {s: rows};
+  mfn = {at: now, files:"sample", rows:[
+    {it:"100100", lo:A, d:"Router, model A", q:1500, v:0},
+    {it:"100200", lo:A, d:"Drop cable, 500 ft", q:360, v:12672},
+    {it:"100300", lo:A, d:"Network interface device", q:60, v:38693.14},
+    {it:"100400", lo:B, d:"10G Ethernet card", q:42, v:93211.1},
+    {it:"100500", lo:B, d:"SFP+ 10G optic", q:2, v:310},
+    {it:"100600", lo:A, d:"Riser boots, 30/box", q:1080, v:19863.72}]};
+  meta = null;
+  reasons = {["100300@"+A]:{r:REASONS[0].r, x:true, n:"Packing slip missing — buyer emailed", at:now}};
+  banner("You're looking at <b>sample data</b> — nothing is saved. Drop your real reports above to start.", "info");
+  recompute();
+}
+
+/* ---------- events ---------- */
+document.querySelectorAll(".dz").forEach(z => {
+  const inp = z.querySelector("input"), kind = z.dataset.kind;
+  z.querySelector(".addbtn").addEventListener("click", () => inp.click());
+  inp.addEventListener("click", e => e.stopPropagation());
+  inp.addEventListener("change", () => { handleFiles([...inp.files], kind); inp.value=""; });
+  ["dragenter","dragover"].forEach(ev => z.addEventListener(ev, e => { e.preventDefault(); z.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => z.addEventListener(ev, e => { e.preventDefault(); z.classList.remove("over"); }));
+  z.addEventListener("drop", e => handleFiles([...e.dataTransfer.files], kind));
+});
+function dzStatus(){
+  const set = (k, chip, list, loaded) => {
+    const c = document.querySelector(`[data-chip="${k}"]`); if(c) c.innerHTML = chip;
+    const l = document.querySelector(`[data-st="${k}"]`); if(l) l.innerHTML = list;
+    const bay = document.querySelector(`.dz[data-kind="${k}"]`); if(bay) bay.classList.toggle("loaded", !!loaded); };
+  const fresh = t => t && (Date.now() - t) < 18*36e5;
+  if(sample){ ["onhand","tx","mfn"].forEach(k => set(k, `<span class="chip busy">Sample data</span>`, "", true)); return; }
+  set("onhand", onhand ? `<span class="chip ${fresh(onhand.at)?"ok":"warn"}">${fresh(onhand.at)?"✓ Loaded":"Not today’s"}</span>` : "",
+    onhand ? `<span><b>File</b>${esc(onhand.files||"")}</span><span><b>Loaded</b>${fmtWhen(onhand.at)} · ${onhand.rows.length} dock lines</span>` : "", !!onhand);
+  const hasTx = model && model.txTotal; const txOk = hasTx && E.openHours(model.maxT, Date.now()) < 24;
+  set("tx", hasTx ? `<span class="chip ${txOk?"ok":"warn"}">${txOk?"✓ Up to date":"Needs newer days"}</span>` : "",
+    hasTx ? `<span><b>Covers</b>${fmtDay(model.minT)} – ${fmtWhen(model.maxT)}</span><span><b>Dock rows</b>${model.txTotal.toLocaleString()} transactions</span>` : "", !!hasTx);
+  const nc = Object.keys(costLib).length;
+  set("mfn", mfn || nc ? `<span class="chip ok">✓ ${nc ? "Costs saved" : "Loaded"}</span>` : "",
+    (mfn ? `<span><b>Loaded</b>${fmtWhen(mfn.at)}</span>` : "") + (nc ? `<span><b>Costs</b>${nc.toLocaleString()} items on file</span>` : ""), !!(mfn || nc));
+}
+$("sampleBtn").addEventListener("click", loadSample);
+$("filterSeg").addEventListener("click", e => { const b = e.target.closest("button[data-f]"); if(!b) return; filter = b.dataset.f; render(); });
+$("q").addEventListener("input", render);
+$("showExc").addEventListener("change", render);
+$("rows").addEventListener("click", e => { if(e.target.dataset.desc){ const k = e.target.closest("tr").dataset.k; const p = model.parts.find(x=>x.k===k); editing = p ? p.it : null; render(); const i = document.querySelector(".descin"); if(i){ i.focus(); i.select(); } return; } });
+async function commitDesc(inp){ const it = editing; if(!it) return; editing = null; const v = inp.value.trim().slice(0,90);
+  if(v && v !== descLib[it]){ if(sample){ descLib[it] = v; } else await saveDescs({[it]: v}); } recompute(); }
+$("rows").addEventListener("keydown", e => { if(!e.target.classList.contains("descin")) return; if(e.key==="Enter"){ e.preventDefault(); commitDesc(e.target); } if(e.key==="Escape"){ editing = null; render(); } });
+$("rows").addEventListener("focusout", e => { if(e.target.classList.contains("descin") && editing) commitDesc(e.target); });
+$("rows").addEventListener("click", e => { if(!e.target.dataset.tog) return; const k = e.target.closest("tr").dataset.k; open.has(k) ? open.delete(k) : open.add(k); render(); });
+$("rows").addEventListener("change", e => {
+  const tr = e.target.closest("tr"); if(!tr || !tr.dataset.k) return; const k = tr.dataset.k;
+  if(e.target.classList.contains("rsel")){ const def = REASONS.find(o=>o.r===e.target.value); saveReason(k, {r:e.target.value, x: def ? def.x : false}); render(); }
+  if(e.target.classList.contains("xchk")){ saveReason(k, {x:e.target.checked}); render(); }
+  if(e.target.classList.contains("note")){ if((reasons[k]?.n||"") !== e.target.value) saveReason(k, {n:e.target.value}); }
+});
+$("copyBtn").addEventListener("click", async () => { try{ await navigator.clipboard.writeText(summaryText()); toast("Summary copied — paste it into Teams or an email."); }catch(e){ toast("Couldn't copy from here."); } });
+$("dlBtn").addEventListener("click", downloadXlsx);
+$("setHV").addEventListener("change", () => { lsSet("dockPri.hv", $("setHV").value); render(); });
+$("setLoc").addEventListener("change", () => { lsSet("dockPri.locs", $("setLoc").value); recompute(); });
+for(const id of ["setShiftS","setShiftE"]) $(id).addEventListener("change", () => { lsSet("dockPri."+id, $(id).value); render(); });
+async function clearAll(alsoReasons){
+  if(sample){ sample = false; open.clear(); banner(""); await loadSaved(); recompute(); toast("Sample cleared."); return; }
+  if(db){
+    for(const d of Object.keys(txDays)){ try{ await db.doc("tx/"+d).delete(); }catch(err){} }
+    try{ await db.doc("dock/mfn").delete(); }catch(err){}
+    try{ await db.doc("dock/onhand").delete(); }catch(err){}
+    try{ await db.doc("dock/meta").delete(); }catch(err){}
+    if(alsoReasons) for(const k of Object.keys(reasons)){ try{ await db.doc("reasons/"+k).delete(); }catch(err){} }
+  }
+  txDays = {}; mfn = null; meta = null; onhand = null; if(alsoReasons) reasons = {};
+  lsSet("dockPri.tx", {}); lsSet("dockPri.mfn", null); lsSet("dockPri.onhand", null); lsSet("dockPri.meta", null); if(alsoReasons) lsSet("dockPri.reasons2", {});
+  open.clear(); filter = "all"; banner(""); recompute(); toast(alsoReasons ? "Everything cleared." : "Uploaded reports cleared. Reasons were kept.");
+}
+$("clearTop").addEventListener("click", () => {
+  if(sample){ clearAll(false); return; }
+  banner(`<b>Clear the uploaded reports?</b> This removes the loaded on-hand, transaction history and MFN reports${db?" for everyone using this page":""}. You'll need to upload again.
+    <label style="display:inline-flex;gap:6px;align-items:center;margin:0 10px"><input type="checkbox" id="clrReasons"> Also clear reasons &amp; notes</label>
+    <button class="btn primary" id="clrYes" type="button">Yes, clear</button> <button class="btn link" id="clrNo" type="button">Cancel</button>`, "warn");
+});
+$("banner").addEventListener("click", e => {
+  if(e.target.id==="clrNo" || e.target.id==="markNo") banner("");
+  if(e.target.id==="markOld") markUnknownOld();
+  if(e.target.id==="clrYes"){ if(!canWrite){ toast("You have view-only access."); return; } clearAll(!!$("clrReasons")?.checked); }
+});
+setInterval(() => { const a = document.activeElement?.tagName; if(model && a!=="TEXTAREA" && a!=="SELECT" && a!=="INPUT") render(); }, 60000);
+
+/* ---------- boot ---------- */
+const savedLocs = lsGet("dockPri.locs"); if(savedLocs) $("setLoc").value = savedLocs;
+for(const id of ["setShiftS","setShiftE"]){ const v = lsGet("dockPri."+id); if(v) $(id).value = v; }
+// The due times and "shift hours left" move with the clock.
+setInterval(() => { if(model && model.parts.length && !document.hidden && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) render(); }, 60000);
+const savedHV = lsGet("dockPri.hv"); if(savedHV) $("setHV").value = savedHV;
+async function resolveNames(){
+  if(!user) return; const ids = new Set([meta?.by, ...Object.values(reasons).map(r=>r.by)].filter(Boolean));
+  const miss = [...ids].filter(id => !(id in names)); if(!miss.length) return;
+  try{ const ps = await user.profiles(miss); miss.forEach(id => names[id] = (ps[id] && ps[id].name) || "Someone"); render(); }catch(e){}
+}
+async function loadSaved(){
+  if(!db){ costLib = lsGet("dockPri.cost") || {}; descLib = lsGet("dockPri.desc") || {}; txDays = lsGet("dockPri.tx") || {}; onhand = lsGet("dockPri.onhand"); mfn = lsGet("dockPri.mfn"); meta = lsGet("dockPri.meta"); reasons = lsGet("dockPri.reasons2") || {}; return; }
+  try{ const s = await db.collection("tx").get(); txDays = {}; s.docs.forEach(d => { txDays[d.id] = (d.data().rows||[]).map(r => JSON.parse(r)); }); }catch(e){}
+  try{ const s = await db.doc("dock/onhand").get(); onhand = s.exists ? JSON.parse(JSON.stringify(s.data())) : null; }catch(e){}
+  try{ const s = await db.doc("dock/mfn").get(); mfn = s.exists ? JSON.parse(JSON.stringify(s.data())) : null; }catch(e){}
+  try{ const s = await db.doc("dock/meta").get(); meta = s.exists ? s.data() : null; }catch(e){}
+}
+(async () => {
+  let got = false;
+  const timer = setTimeout(() => { if(!got) $("modeTag").textContent = "Shared list not reachable yet…"; }, 10000);
+  try{
+    const dl = await toolkitUse("downloads"); if(dl) $("dlBtn").hidden = false;
+    user = await toolkitUse("user");
+    if(user){ try{ myId = await user.id(); }catch(e){} try{ if(await user.can("data.write")===false) canWrite = false; }catch(e){} }
+    db = await toolkitUse("db");
+  }catch(e){ db = null; }
+  if(!db){ clearTimeout(timer); $("modeTag").textContent = "Saved on this browser only"; await loadSaved(); recompute(); return; }
+  $("modeTag").textContent = canWrite ? "Shared list · live" : "Shared list · view only";
+  if(!canWrite) $("drops").hidden = true;
+  // live: other people's uploads and reasons show up without reloading
+  db.collection("tx").onSnapshot(s => { got = true; clearTimeout(timer); if(sample) return;
+    txDays = {}; s.docs.forEach(d => { try{ txDays[d.id] = (d.data().rows||[]).map(r => JSON.parse(r)); }catch(e){} }); recompute(); },
+    () => { clearTimeout(timer); $("modeTag").textContent = "Shared list unavailable"; });
+  db.collection("cost").onSnapshot(s => { const n = {}; s.docs.forEach(d => Object.assign(n, d.data().m || {})); costLib = n; if(!editing) recompute(); }, () => {});
+  db.collection("desc").onSnapshot(s => { const n = {}; s.docs.forEach(d => Object.assign(n, d.data().m || {})); descLib = n; if(!editing) recompute(); }, () => {});
+  db.doc("dock/onhand").onSnapshot(s => { if(sample) return; onhand = s.exists ? JSON.parse(JSON.stringify(s.data())) : null; recompute(); }, () => {});
+  db.doc("dock/mfn").onSnapshot(s => { if(sample) return; mfn = s.exists ? JSON.parse(JSON.stringify(s.data())) : null; recompute(); }, () => {});
+  db.doc("dock/meta").onSnapshot(s => { if(sample) return; meta = s.exists ? s.data() : null; render(); resolveNames(); }, () => {});
+  db.collection("reasons").onSnapshot(s => { if(sample) return; const n = {}; s.docs.forEach(d => n[d.id] = d.data()); reasons = n;
+    if(document.activeElement?.classList.contains("note")) return; render(); resolveNames(); }, () => {});
+})();
+recompute();
+})();
+
+</script>
+</body>
+</html>
