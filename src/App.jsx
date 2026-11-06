@@ -72,10 +72,9 @@ function readExcel(file) {
   })
 }
 
-// Special reader for EAB: uses the "Index of Part No.s" sheet as the
-// authoritative map of sheet-number -> real part number (each sheet's own
-// "Name" column is unreliable), then only reads sheets whose part number is
-// in TARGET_EAB_PARTS. Header row is located dynamically per sheet by
+// Special reader for EAB: the part number comes from the sheet's name ("14. G5 Next Gen Splitter 104115"),
+// or, when the name has none, from the "Index of Part No.s" sheet (each row's own "Name" column is unreliable).
+// Only sheets whose part number is in TARGET_EAB_PARTS are read. Header row is located dynamically per sheet by
 // scanning for "Pallets per Space" text, since title rows vary in height.
 function readExcelEAB(file) {
   return new Promise((resolve, reject) => {
@@ -102,12 +101,12 @@ function readExcelEAB(file) {
         for (const sheetName of wb.SheetNames) {
           if (sheetName === indexSheetName) continue
 
-          // Part sheets are numbered ("12. Name", "12 - Name", "12) Name"); the index sheet maps the number to the
-          // part. A 6-digit part number in the sheet name works too, for when the index sheet is missing or out of date.
+          // Part sheets are numbered ("12. Name", "12 - Name", "12) Name").
           const leadingNumMatch = sheetName.match(/^\s*(\d+)\s*[.\-)]/)
           const nameDigits = sheetName.match(/(?<!\d)(\d{6})(?!\d)/)
-          let partNumber = leadingNumMatch ? partNumberBySheetIndex[parseInt(leadingNumMatch[1])] : null
-          if (!partNumber && nameDigits) partNumber = nameDigits[1]
+          // The part number written in the sheet's own name wins ("14. G5 Next Gen Splitter 104115"): it's what people
+          // see and keep up to date. The index sheet is only used for sheets whose name has no part number.
+          let partNumber = nameDigits ? nameDigits[1] : leadingNumMatch ? partNumberBySheetIndex[parseInt(leadingNumMatch[1])] : null
           if (!partNumber) continue // not a part sheet (Information, Sheet1, etc.)
           diag.partSheets++
           if (TARGET_EAB_PARTS.size && !TARGET_EAB_PARTS.has(partNumber)) continue // only pull sheets for tracked parts
@@ -225,7 +224,11 @@ function parseEAB(rows) {
     const palletsRaw = palletsCol ? r[palletsCol] : ''
     const dateShipped = shippedCol ? r[shippedCol] : null
 
-    const qty = parseNumber(palletsRaw)
+    // "Pallets per Space" may be a number or text like "Single pallet, occupying (1) space".
+    const qty = typeof palletsRaw === 'number' ? palletsRaw
+      : /single/i.test(String(palletsRaw)) ? 1
+      : /double/i.test(String(palletsRaw)) ? 2
+      : (parseInt((String(palletsRaw).match(/\d+/) || ['0'])[0], 10) || 0)
     if (qty <= 0) continue // skips filler/leftover blank rows with no real pallet data
 
     // Only count pallets still in storage (Date Shipped is empty)
