@@ -98,15 +98,20 @@ function readExcelEAB(file) {
         }
 
         const allRows = []
+        const diag = { sheets: wb.SheetNames.length, index: !!indexSheetName, partSheets: 0, tracked: 0, noHeader: 0 }
         for (const sheetName of wb.SheetNames) {
           if (sheetName === indexSheetName) continue
 
-          const leadingNumMatch = sheetName.match(/^(\d+)\./)
-          if (!leadingNumMatch) continue // not a numbered part sheet (Information, Sheet1, etc.)
-          const sheetIndex = parseInt(leadingNumMatch[1])
-          const partNumber = partNumberBySheetIndex[sheetIndex]
-          if (!partNumber) continue
-          if (!TARGET_EAB_PARTS.has(partNumber)) continue // only pull sheets for tracked parts
+          // Part sheets are numbered ("12. Name", "12 - Name", "12) Name"); the index sheet maps the number to the
+          // part. A 6-digit part number in the sheet name works too, for when the index sheet is missing or out of date.
+          const leadingNumMatch = sheetName.match(/^\s*(\d+)\s*[.\-)]/)
+          const nameDigits = sheetName.match(/(?<!\d)(\d{6})(?!\d)/)
+          let partNumber = leadingNumMatch ? partNumberBySheetIndex[parseInt(leadingNumMatch[1])] : null
+          if (!partNumber && nameDigits) partNumber = nameDigits[1]
+          if (!partNumber) continue // not a part sheet (Information, Sheet1, etc.)
+          diag.partSheets++
+          if (TARGET_EAB_PARTS.size && !TARGET_EAB_PARTS.has(partNumber)) continue // only pull sheets for tracked parts
+          diag.tracked++
 
           const ws = wb.Sheets[sheetName]
           const raw = XLSX.utils.sheet_to_json(ws, { defval: '', header: 1 })
@@ -121,7 +126,7 @@ function readExcelEAB(file) {
               break
             }
           }
-          if (headerRowIdx === -1) continue
+          if (headerRowIdx === -1) { diag.noHeader++; continue }
 
           const headers = raw[headerRowIdx]
           for (let i = headerRowIdx + 1; i < raw.length; i++) {
@@ -131,6 +136,17 @@ function readExcelEAB(file) {
             headers.forEach((h, idx) => { obj[h] = rowArr[idx] ?? '' })
             allRows.push(obj)
           }
+        }
+        if (!allRows.length) {
+          // Say why, instead of quietly showing every EAB part as missing.
+          const why = !diag.partSheets
+            ? `none of its ${diag.sheets} sheets looked like a part sheet${diag.index ? '' : ' and there is no "Index of Part No.s" sheet'}`
+            : !diag.tracked
+              ? `none of its ${diag.partSheets} part sheets are on the tracked EAB parts list${TARGET_EAB_PARTS.size ? '' : ' (the list is empty: import the company settings file)'}`
+              : `the ${diag.tracked} tracked part sheets have no "Pallets per Space" header in their first 8 rows`
+          const err = new Error(`Read the EAB workbook, but ${why}.`)
+          err.userMessage = err.message
+          return reject(err)
         }
         resolve(allRows)
       } catch (err) { reject(err) }
@@ -498,7 +514,7 @@ export default function App() {
   const handleFileUpload = (key, nameKey, isEAB = false) => (file) => {
     if (!file) return
     const reader = isEAB ? readExcelEAB : readExcel
-    reader(file).then(rows => setData(d => ({...d, [key]:rows, [nameKey]:file.name}))).catch(() => alert(`Could not read ${file.name}. Make sure it's an Excel or CSV file.`))
+    reader(file).then(rows => setData(d => ({...d, [key]:rows, [nameKey]:file.name}))).catch((err) => alert(err && err.userMessage ? `${file.name}: ${err.userMessage}` : `Could not read ${file.name}. Make sure it's an Excel or CSV file.`))
   }
 
   const mainRows = useMemo(() => data.main ? parseMainWarehouse(data.main) : [], [data.main])
