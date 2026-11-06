@@ -1,0 +1,5 @@
+# Company data never goes in this repository.
+*settings*.json
+*backup*.json
+node_modules/
+*-app.css

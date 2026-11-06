@@ -816,36 +816,16 @@ function realInputs(items,day){
 }
 /*CORE-END*/
 
-/* ---------- Example data (made up, so you can see how it works) ---------- */
-function exFile(name,kind,rows,extra){const f={name,kind,example:true,hiddenCount:0,sheets:[''],moves:new Map(),info:new Map(),date:null,raw:null,...extra};
-  f.rows=rows.map(r=>({item:r[0],desc:r[1],qty:r[2],lpn:r[3]||'',loose:kind!=='summary'&&!r[3],cost:r[4]??null,sub:'RCV',loc:'DOCK-1'}));return f}
-const EX_RECV=exFile('Example · dock transaction log','log',[
-  ['100100','Router, model A',800,'LPN-0001'],['100100','Router, model A',800,'LPN-0002'],
-  ['100100','Router, model A',800,'LPN-0003'],['100100','Router, model A',800,'LPN-0004'],
-  ['100200','Wall bracket',18000,'LPN-0005'],['100200','Wall bracket',18000,'LPN-0006'],['100200','Wall bracket',13000,'LPN-0007'],
-  ['100300','Splice enclosure',2688,''],
-],{date:'2026-10-14'});
-EX_RECV.moves=new Map([
-  ['100400',{on:0,off:56000,lines:[{qty:-16000,lpn:'LPN-0101',sub:'RCV',loc:'DOCK-1'},{qty:-16000,lpn:'LPN-0102',sub:'RCV',loc:'DOCK-1'},{qty:-24000,lpn:'LPN-0103',sub:'RCV',loc:'DOCK-1'}]}],
-  ['100500',{on:0,off:10000,lines:[{qty:-10000,lpn:'LPN-0104',sub:'RCV',loc:'DOCK-1'}]}]]);
-EX_RECV.info=new Map([['100400',{desc:'Drop cable reel, 2000 ft'}],['100500',{desc:'Strand marker'}]]);
-const EX_DOCK=exFile('Example · inventory report, next morning','summary',[
-  ['100100','Router, model A',1600,''],
-  ['100200','Wall bracket',49000,''],
-  ['100600','Riser boots, 30/box',1080,'',18.39],
-  ['100700','Lock box',189,'',258.39],
-  ['100800','Network terminal, model B',1368,'',75],
-],{date:'2026-10-15'});
 const EMPTY_LOG={name:'',kind:'log',rows:[],moves:new Map(),info:new Map(),raw:{receipts:[],packs:[],lines:[]},hiddenCount:0,date:null};
 const EMPTY_DOCK={name:'',kind:'summary',rows:[],moves:new Map(),info:new Map(),hiddenCount:0,date:null};
 
-const state={recvList:null,reports:null,files:{recv:EX_RECV,dock:EX_DOCK},raw:null,errors:{recv:[],dock:[]},busy:{},
-  mode:'next',filter:'nd',q:'',loose:true,skipHidden:true,scope:null,open:new Set(),day:'2026-10-14',dayTouched:false,
+const state={recvList:null,reports:null,files:{recv:EMPTY_LOG,dock:EMPTY_DOCK},raw:null,errors:{recv:[],dock:[]},busy:{},
+  mode:'next',filter:'nd',q:'',loose:true,skipHidden:true,scope:null,open:new Set(),day:null,dayTouched:false,
   range:null,selDay:null,db:null,dbState:'loading',history:[],saving:false,confirmDel:null,exceptions:[],confirmEx:null,openWeeks:new Set(),showBays:false,looseCount:{}};
 const REASONS=(TK.reasons&&TK.reasons.length)?TK.reasons:["Waiting on vendor","Shipping out","Supervisor approved","Count off (over / short)","Equipment down","No location / space","PO issue","Other"];   // the exception list, from the settings file
 const cssId=s=>String(s).replace(/[^A-Za-z0-9]/g,'_');
 const weekOf=k=>addDays(k,-((keyDate(k).getDay()+6)%7));
-state.scope=defaultScope(EX_RECV,EX_DOCK);
+state.scope=null;
 
 /* ---------- Helpers ---------- */
 const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
@@ -857,7 +837,10 @@ const yr=k=>keyDate(k).getFullYear()!==THIS_YEAR?{year:'numeric'}:{};
 const fmtDay=k=>k?keyDate(k).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',...yr(k)}):'';
 const fmtShort=k=>k?keyDate(k).toLocaleDateString('en-US',{month:'short',day:'numeric',...yr(k)}):'';
 const KIND={log:'Transaction log',detail:'LPN on-hand',summary:'Inventory totals'};
-const isExample=()=>!!(state.files.recv.example||state.files.dock.example);
+const isExample=()=>false;   // no example data: the page starts blank
+const yday=()=>{const d=new Date();d.setDate(d.getDate()-1);while([0,6].includes(d.getDay()))d.setDate(d.getDate()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+if(!state.day)state.day=yday();
+const nothingLoaded=()=>!state.recvList&&!state.reports;
 /* The first day to check. The daily routine is yesterday's log plus this morning's report, so when the log has the
    work day before the first report, that day is checked too: its carryover comes from the saved day before it. */
 function rangeStart(){
@@ -884,11 +867,11 @@ function derive(){
       state.files.recv={...logView(state.raw,null),name:logs.map(f=>f.name).join(', '),hiddenCount:logs.reduce((s,f)=>s+f.hiddenCount,0),raw:state.raw};
     }else{state.raw=null;state.files.recv=state.recvList[state.recvList.length-1]}
   }else if(state.recvList){state.raw=null;state.files.recv=EMPTY_LOG}
-  else{state.raw=null;state.files.recv=EX_RECV}
+  else{state.raw=null;state.files.recv=EMPTY_LOG}
   if(state.reports&&state.reports.length){
     const reps=[...state.reports].sort((a,b)=>a.date.localeCompare(b.date));
     state.files.dock={...reps[reps.length-1].file,date:reps[reps.length-1].date};
-  }else state.files.dock=state.reports?EMPTY_DOCK:EX_DOCK;
+  }else state.files.dock=EMPTY_DOCK;
 }
 
 /* ---------- Rendering ---------- */
@@ -911,11 +894,11 @@ function renderBays(){
   document.getElementById('clear-recv').hidden=!(state.recvList&&state.recvList.length);
   if(state.busy.recv)cr.innerHTML='<span class="chip busy">Reading…</span>';
   else if(state.errors.recv.length&&!(state.recvList&&state.recvList.length))cr.innerHTML='<span class="chip err">Couldn’t read file</span>';
-  else if(!state.recvList)cr.innerHTML='<span class="chip ex">Example · Oct 14</span>';
+  else if(!state.recvList)cr.innerHTML='';
   else if(!state.recvList.length)cr.innerHTML='';
   else if(state.raw){const ld=logDays(state.raw);cr.innerHTML=`<span class="chip ok">${state.recvList.length} log${state.recvList.length===1?'':'s'} · ${fmt(state.raw.receipts.length)} receipts · ${rangeLabel(ld)}</span>`}
   else cr.innerHTML=`<span class="chip ok">${KIND[R.kind]}</span>`;
-  lr.innerHTML=!state.recvList?'<span class="dim" style="font-family:var(--body)">Using example data from your Oct 14 files</span>'
+  lr.innerHTML=!state.recvList?'<span class="dim" style="font-family:var(--body)">No file yet</span>'
     :state.recvList.map(f=>{const d=f.raw?rangeLabel(logDays(f.raw)):'';return `<span>${d?`<b>${d}</b>`:''}${esc(f.name)}</span>`}).join('')||'<span class="dim" style="font-family:var(--body)">No files yet</span>';
   /* box 2 */
   const cd=document.getElementById('chip-dock'),ldk=document.getElementById('list-dock');
@@ -923,23 +906,23 @@ function renderBays(){
   document.getElementById('clear-dock').hidden=!(state.reports&&state.reports.length);
   if(state.busy.dock)cd.innerHTML='<span class="chip busy">Reading…</span>';
   else if(state.errors.dock.length&&!(state.reports&&state.reports.length))cd.innerHTML='<span class="chip err">Couldn’t read file</span>';
-  else if(!state.reports)cd.innerHTML='<span class="chip ex">Example · Oct 15</span>';
+  else if(!state.reports)cd.innerHTML='';
   else if(!state.reports.length)cd.innerHTML='';
   else cd.innerHTML=`<span class="chip ok">${state.reports.length} report${state.reports.length===1?'':'s'} · ${rangeLabel(state.reports.map(r=>r.date))}</span>`;
-  ldk.innerHTML=!state.reports?'<span class="dim" style="font-family:var(--body)">Using example data from your Oct 14 files</span>'
+  ldk.innerHTML=!state.reports?'<span class="dim" style="font-family:var(--body)">No file yet</span>'
     :[...state.reports].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>`<span><b>${fmtDay(r.date)}${r.named?'':' (file date)'}</b>${esc(r.name)}</span>`).join('')||'<span class="dim" style="font-family:var(--body)">No files yet</span>';
 }
 function renderStatus(t){
   const el=document.getElementById('statusLine'), ex=isExample(), have=!!(state.recvList&&state.recvList.length&&state.reports&&state.reports.length);
   const bays=document.getElementById('bays'); bays.hidden=have&&!state.showBays;
   const rng=isRange(), rg=state.range||[], graded=rng?rg.filter(d=>d.res):[];
-  const what=ex?'Example data (Oct 14)':rng?`Checking ${graded.length} day${graded.length===1?'':'s'}${graded.length?` · ${fmtShort(graded[0].day)} – ${fmtShort(graded[graded.length-1].day)}`:''}`:`Checking 1 day · ${fmtDay(state.day)}`;
+  const what=nothingLoaded()?'Add your files to start':ex?'Example data':rng?`Checking ${graded.length} day${graded.length===1?'':'s'}${graded.length?` · ${fmtShort(graded[0].day)} – ${fmtShort(graded[graded.length-1].day)}`:''}`:`Checking 1 day · ${fmtDay(state.day)}`;
   const files=!have?'':`log ${state.raw?rangeLabel(logDays(state.raw)):state.recvList.length+' file'+(state.recvList.length===1?'':'s')} · ${state.reports.length} morning report${state.reports.length===1?'':'s'}`;
   el.innerHTML=`<span class="what">${what}</span><span class="dim">${state.mode==='next'?'24-hour check':'Same-day live count'}</span>${files?`<span class="dim">Files: ${files}</span>`:''}
     ${have?`<button class="btn small" type="button" id="toggleBays">${state.showBays?'Hide files':'Change files'}</button>`:''}`;
 }
 /* ---------- Watch list ----------
-   Items that need something done when they come in (for example the PC Help part list: Misc Issue to 16300, then a $0 Misc Receipt).
+   Items that need something done when they come in (for example parts that need an extra Oracle step).
    When a watched item is received on the day being checked, it's flagged at the top and on its row. */
 function cellStr(v){return String(v??'').trim()}
 function parseWatch(buf,name){
@@ -1118,7 +1101,7 @@ function renderTable(items){
   const rows=items.filter(i=>pass(i)&&(!q||i.item.toLowerCase().includes(q)||i.desc.toLowerCase().includes(q)));
   const tb=document.getElementById('tbody');
   const watchSet=new Set(((state.watch&&state.watch.items)||[]).map(x=>x[0]));
-  if(!rows.length){tb.innerHTML='<tr><td colspan="11" class="empty">No items match.</td></tr>';return}
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="11" class="empty">${nothingLoaded()?'Add the dock transaction log (box 1) and the morning report (box 2) to see the items.':'No items match.'}</td></tr>`;return}
   tb.innerHTML=rows.map(i=>{
     const open=state.open.has(i.item),e=(i.est||i.carryEst)&&i.opps.length?'≈':'';
     let html=`<tr class="row s-${i.status}" tabindex="0" data-item="${esc(i.item)}" aria-expanded="${open}">
@@ -1355,6 +1338,7 @@ function render(){
     state.range=null;
     const prev=prevRecord(state.day);
     const startRep=null;
+    if(nothingLoaded()){last={items:[],t:null};renderStatus(null);renderRange();renderDaySec(null,null);renderNotices(null);renderSummary(null);renderTable([]);renderExceptions();renderHistory();return}
     last=compute(state.files.recv,state.files.dock,{scope:state.scope,loose:state.loose,mode:state.mode,day:state.day,carry:carryFromRecord(prev),startDock:startRep,exceptions:state.exceptions,looseCount:state.looseCount});
     const FR=fullRaw();
     if(FR&&last.t&&!last.t.same&&!isExample()){const x=realInputs(last.items,state.day);last.real=realTiming(FR,state.scope,state.day,x.pallets,x.opening,state.exceptions);last.realIn=x}
