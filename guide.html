@@ -58,6 +58,7 @@ h1{font-size:clamp(28px,5vw,38px);font-weight:800;letter-spacing:-.02em;line-hei
 .jump span{color:var(--muted);font-size:13px}
 .jump i{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b48bff}
 .jump a:hover,.jump a:focus-visible{border-color:#964dff}
+section.tool.setup{border-top:0;padding-top:0}
 section.tool{border-top:1px solid var(--line2);padding-top:26px;display:grid;gap:18px;scroll-margin-top:12px}
 .thead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
 .thead h2{font-size:26px;font-weight:800;letter-spacing:-.01em;margin:0}
@@ -114,7 +115,7 @@ details[open]{border-left:3px solid var(--accent2);padding-left:12px}
 <div class="wrap">
   <header>
     <h1>How it works</h1>
-    <p class="lead" style="margin-bottom:6px">A step-by-step guide to every tool in the Warehouse Toolkit, written so someone using it for the first time can follow along. Pick a tool below and follow the numbered steps.</p>
+    <p class="lead" style="margin-bottom:6px">A step-by-step guide to every tool in the Warehouse Toolkit, written so someone using it for the first time can follow along. Set up your save folder once, then pick a tool below and follow the numbered steps.</p>
   </header>
 
   <div class="basics">
@@ -123,12 +124,37 @@ details[open]{border-left:3px solid var(--accent2);padding-left:12px}
       <li><b>Everything happens in this page.</b> Files you drop in are read on your computer. Nothing needs installing.</li>
       <li><b>Dropping files:</b> drag them from your folder onto the box, or click the box and pick them. Several at once is fine.</li>
       <li><b>Reports and files</b> you download go to your Downloads folder, like any other download.</li>
-      <li><b>First time on a computer:</b> click <b>Saving to</b> in the top right. Import the <b>company settings file</b> (sites, addresses, names, part weights), then choose <b>Save to a folder…</b> and pick a folder, for example <code>Documents\Toolkit Data</code>. Edge or Chrome asks to let the site edit files in that folder: allow it.</li>
+      <li><b>First time on a computer:</b> see <a href="#save-folder" data-to="save-folder">Set up a folder for your saved work</a> below. In short: click <b>Saving to</b> in the top right. Import the <b>company settings file</b> (sites, addresses, names, part weights), then choose <b>Save to a folder…</b> and pick a folder, for example <code>Documents\Toolkit Data</code>. Edge or Chrome asks to let the site edit files in that folder: allow it.</li>
       <li><b>Your saved work</b> (daily log, exceptions, reasons, corrections) is kept in that folder. If you skip the folder it's kept in this browser only, and clearing browsing data erases it.</li>
       <li><b>Moving to another computer:</b> <b>Saving to</b> → <b>Download backup</b>, then <b>Restore from backup</b> on the other computer.</li>
       <li><b>Each tool also has a short “How to use this”</b> at the bottom of its own tab.</li>
     </ul>
   </div>
+
+  <section class="tool setup" id="save-folder">
+    <div class="thead"><div><span class="when">Once per computer · about 2 minutes</span><h2>Set up a folder for your saved work</h2></div></div>
+    <p class="purpose">The toolkit saves your daily log, exceptions, Dock Priority reasons, the watch list and everything it learns into a folder you pick. Files in a folder are easy to back up, and they don't disappear if someone clears the browser.</p>
+    <div><h3>Make the folder</h3><ol class="steps">
+      <li><span>Open <b>File Explorer</b> and go to <b>Documents</b>. (Later, when the team shares one, use the shared drive folder instead.)</span></li>
+      <li><span>Right-click an empty spot, choose <b>New → Folder</b>, and name it <b>Toolkit Data</b>.</span></li>
+    </ol></div>
+    <div><h3>Point the toolkit at it</h3><ol class="steps">
+      <li><span>Open the toolkit in <b>Edge</b> or <b>Chrome</b>. (Firefox and Safari can't save to a folder.)</span></li>
+      <li><span>Click <b>Saving to: This browser</b> in the top right corner.</span></li>
+      <li><span>If you haven't yet, click <b>Import settings file</b> and pick <b>warehouse-toolkit-settings.json</b>. The page reloads; open <b>Saving to</b> again.</span></li>
+      <li><span>Click <b>Save to a folder…</b>, go to <b>Documents → Toolkit Data</b>, and click <b>Select Folder</b>.</span></li>
+      <li><span>The browser asks to let the site <b>view files</b>, then to <b>save changes</b> in that folder. Allow both. If it offers <b>Allow on every visit</b>, pick that so it doesn't ask again.</span></li>
+      <li><span>If it asks to copy what's already saved in this browser into the folder, click <b>OK</b> so nothing is lost.</span></li>
+      <li><span>The page reloads and the top right says <b>Saving to: 📁 Toolkit Data</b>. You're done.</span></li>
+    </ol></div>
+    <div class="trouble"><h3>Good to know</h3><ul>
+      <li><b>A yellow bar says “Reconnect folder”:</b> some browsers ask for one click each visit before they open the folder again. Click <b>Reconnect folder</b> and allow it.</li>
+      <li><b>Don't move or rename the folder</b> after you've picked it. If you do, open <b>Saving to</b> → <b>Change folder…</b> and pick it again.</li>
+      <li><b>Sharing with the team later:</b> make one <b>Toolkit Data</b> folder on the shared drive and have everyone pick that same folder. Everyone then sees the same daily log, exceptions and reasons; changes show up within about 30 seconds.</li>
+      <li><b>New computer:</b> on the old one, <b>Saving to</b> → <b>Download backup</b>. On the new one, set up the folder, then <b>Restore from backup</b>. Or just pick the same shared-drive folder.</li>
+      <li><b>Don't edit the files inside the folder by hand.</b> The toolkit reads and writes them itself.</li>
+    </ul></div>
+  </section>
 
   <nav class="jump" id="jump" aria-label="Tools"></nav>
   <div id="tools"></div>
