@@ -20,7 +20,17 @@ const DEFAULT_SIGNATURE_NAMES = TK.signatureNames || [];
 // 26-spot target. Everything else counts as a full spot per skid.
 const DOUBLE_STACKABLE_ITEMS = new Set((TK.doubleStack || []).map(String));   // from the settings file
 
+// Double-stack can also be switched on or off per part on the page; that choice is remembered on this computer.
+const DS_KEY = "truckLoadBuilder.doubleStack";
+const DOUBLE_STACK_OVERRIDES = (() => { try { return JSON.parse(localStorage.getItem(DS_KEY) || "{}"); } catch { return {}; } })();
+function setDoubleStack(itemNumber, on) {
+  DOUBLE_STACK_OVERRIDES[String(itemNumber)] = !!on;
+  try { localStorage.setItem(DS_KEY, JSON.stringify(DOUBLE_STACK_OVERRIDES)); } catch { /* not kept after reload */ }
+}
+
 function isDoubleStackable(itemNumber) {
+  const o = DOUBLE_STACK_OVERRIDES[String(itemNumber)];
+  if (o !== undefined) return o;
   return DOUBLE_STACKABLE_ITEMS.has(String(itemNumber));
 }
 
@@ -556,6 +566,13 @@ export default function TruckLoadBuilder() {
     setLines(() => EMPTY_LINES);
   };
 
+  // Switch double-stacking for a part: half a trailer spot per skid when on.
+  const toggleDoubleStack = (item) => {
+    const on = !isDoubleStackable(item);
+    setDoubleStack(item, on);
+    setTrucks((prev) => Object.fromEntries(Object.entries(prev).map(([wh, lines]) => [wh, lines.map((l) => (l.item === item ? { ...l, doubleStack: on } : l))])));
+  };
+
   const removeLineItem = (id) => {
     setLines((prev) => prev.filter((li) => li.id !== id));
   };
@@ -836,20 +853,18 @@ export default function TruckLoadBuilder() {
                         not on list
                       </span>
                     )}
-                    {li.doubleStack && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: 11,
-                          color: "var(--green-light)",
-                          background: "var(--green-bg)",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                        }}
-                      >
-                        double-stacks
-                      </span>
-                    )}
+                    <button
+                      onClick={() => toggleDoubleStack(li.item)}
+                      title={li.doubleStack ? "Counts as half a trailer spot per skid. Click to turn off." : "Click if this part double-stacks (half a spot per skid)."}
+                      style={{
+                        marginLeft: 8, fontSize: 11, padding: "2px 7px", borderRadius: 4, cursor: "pointer",
+                        border: li.doubleStack ? "1px solid transparent" : "1px dashed var(--border-mid)",
+                        color: li.doubleStack ? "var(--green-light)" : "var(--text-muted)",
+                        background: li.doubleStack ? "var(--green-bg)" : "transparent",
+                      }}
+                    >
+                      {li.doubleStack ? "double-stacks ✓" : "double-stack?"}
+                    </button>
                   </td>
                   <td style={cellStyle}>{li.warehouse}</td>
                   <td

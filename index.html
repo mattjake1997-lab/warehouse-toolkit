@@ -72,6 +72,7 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(
     </div>
   </div>
 </header>
+<div class="banner" id="noSettings" hidden><span>Company settings aren’t loaded on this computer, so warehouses, carriers, BOL names, part weights and double-stack parts are blank.</span><label class="b" style="cursor:pointer;font:600 13px var(--body);background:#e8b84b;color:#1a1205;border-radius:7px;padding:7px 12px">Import settings file<input type="file" id="settingsFile2" accept=".json,application/json" hidden></label></div>
 <div class="banner" id="reconnect" hidden><span id="reconnectMsg"></span><button type="button" id="reconnectBtn">Reconnect folder</button></div>
 <main id="main"></main>
 <script>
@@ -149,6 +150,7 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(
       if(!confirm("Restore "+n+" saved records from “"+f.name+"”?\n\nOK = replace everything saved now with the backup · Cancel = do nothing"))return;
       await R.importAll(b,{replace:true});toast("Restored "+n+" records.");setTimeout(()=>location.reload(),800)}
     catch(err){toast(err.message||"Couldn't read that backup.")}});
+  $("settingsFile2").addEventListener("change",e=>{const dt=new DataTransfer();if(e.target.files[0])dt.items.add(e.target.files[0]);$("settingsFile").files=dt.files;$("settingsFile").dispatchEvent(new Event("change"))});
   $("settingsFile").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
     try{const s=JSON.parse(await f.text());if(!s||s.app!=="warehouse-toolkit-settings")throw new Error("That isn't a Warehouse Toolkit settings file.");
       await R.saveSettings(s);toast("Settings imported.");setTimeout(()=>location.reload(),800)}
@@ -158,6 +160,7 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(
     const st=R.settings();
     if(st.brand&&st.brand.title)$("brandName").textContent=st.brand.title;
     if(st.brand&&st.brand.logo){const img=document.createElement("img");img.src=st.brand.logo;img.alt="";$("brand").replaceChild(img,$("brand").querySelector("i"))}
+    if(!st.app)$("noSettings").hidden=false;
     if(!st.app)$("setHelp").textContent="No company settings imported yet, so sites, addresses, carriers, names and part weights are blank. Import the settings file once.";
     let start=location.hash.slice(1);   // a link to a specific tab (#dock-to-stock) opens it; otherwise Pallet Audit
     show(start||"pallet-audit");
