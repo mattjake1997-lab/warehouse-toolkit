@@ -86,7 +86,9 @@ input[type=number]{text-align:center}
 input:focus-visible,textarea:focus-visible,.btn:focus-visible,.drop:focus-visible{outline:2px solid var(--accent2,#964dff);outline-offset:2px}
 .hint{font-size:12.5px;color:var(--muted);margin:0}
 .hint code{font-family:var(--mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
-.ex{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.opt{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600;cursor:pointer}
+.opt input{accent-color:var(--accent);width:16px;height:16px;margin-top:2px;flex:none}
+.opt small{color:var(--muted);font-weight:400;font-size:12.5px}
 .btn{font:600 14px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:8px 13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
 .btn:hover:not(:disabled){border-color:var(--accent)}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -164,7 +166,7 @@ details.cmpd>.card{margin-top:12px}
 <div class="wrap">
   <header>
     <h1>Serial Finder</h1>
-    <p class="sub">Scan a stack of paperwork into one PDF, tell it what the serial numbers look like and how many there should be, and it finds them all and tells you if any are missing or doubled.</p>
+    <p class="sub">Scan a stack of paperwork into one PDF, tell it how the serial numbers start and how many there should be, and it finds them all and tells you if any are missing or doubled.</p>
   </header>
 
   <div class="two">
@@ -180,15 +182,11 @@ details.cmpd>.card{margin-top:12px}
 
     <section class="card">
       <h2><span class="n">2</span>What to look for</h2>
-      <div class="ex">
-        <label class="pat-l" style="display:grid;gap:3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Paste one real serial as an example
-          <input type="text" id="example" placeholder="e.g. SN4821-77310" autocomplete="off" spellcheck="false"></label>
-        <button class="btn" id="makePat">Make pattern</button>
-      </div>
+      <p class="hint" style="font-size:13.5px">Type the first few characters every serial shares, like <code>5426</code>, and how many there should be. It lists every number on the pages that starts with them.</p>
       <div id="pats" style="display:grid;gap:8px"></div>
-      <p class="hint"><code>#</code> any number · <code>@</code> any letter · <code>*</code> either · anything else must match exactly. Example: <code>SN####-#####</code></p>
+      <label class="opt"><input type="checkbox" id="alsoText"><span>Also read the printed numbers on pages with barcodes <small>(slower; barcodes are exact, so this is rarely needed)</small></span></label>
       <div class="row-btns">
-        <button class="btn small" id="addPat">+ Add another pattern</button>
+        <button class="btn small" id="addPat">+ Look for another kind</button>
         <button class="btn small" id="clearAll">Start over</button>
       </div>
     </section>
@@ -227,10 +225,10 @@ details.cmpd>.card{margin-top:12px}
     <summary>How to use this</summary>
     <ol>
       <li><b>Scan the stack</b> into one PDF and drop it in box 1. Scanned pages take a few seconds each to read.</li>
-      <li><b>Tell it what the serials look like.</b> Easiest: paste one real serial in the example box and click <b>Make pattern</b>. Check the pattern: the start that's the same on every serial stays as letters; the rest becomes <code>#</code> (number) and <code>@</code> (letter).</li>
+      <li><b>Type how the serials start</b> in <b>Starts with</b>: the first few characters every one of them shares, like <code>5426</code>.</li>
       <li><b>Type how many there should be</b> in <b>Count</b>.</li>
-      <li><b>Read the result.</b> Green: found exactly that many. Orange: some are missing or extra. The orange <b>Check</b> tag means a letter and number looked alike (like O and 0) and it guessed. <b>Doubled</b> means the same serial is on more than one page.</li>
-      <li><b>Missing some?</b> Look at <b>Close, but not matching</b> and the orange pages with nothing found. Click a page to see it. Add any it missed with <b>Add by hand</b>, and take out wrong ones with ✕.</li>
+      <li><b>Read the result.</b> Green: found exactly that many. Orange: some are missing; red: extras. Serials read from a barcode are exact. One read only from the printed text gets an orange <b>Check</b> tag, so look at it. <b>Odd length</b> means it's longer or shorter than the rest. <b>Doubled</b> means the same serial is on more than one page.</li>
+      <li><b>Missing some?</b> Look at the orange pages with nothing found. Click a page to see it. Add any it missed with <b>Add by hand</b>, and take out wrong ones with ✕.</li>
       <li><b>Copy all serials</b> to paste into Oracle or an email, or <b>Download Excel</b> for a list with the page each serial is on.</li>
     </ol>
   </details>
@@ -247,6 +245,7 @@ details.cmpd>.card{margin-top:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/zxing-wasm@3.1.6/dist/iife/reader/index.js"></script>
 <script>
 (function(){
   try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
@@ -314,41 +313,70 @@ details.cmpd>.card{margin-top:12px}
     }
     return {v:v.trim(),fixed};
   }
-  // Example serial -> pattern. The leading letters (the part every serial shares, like "SN") stay as they are.
-  function patternFrom(ex){
-    ex=String(ex).trim().toUpperCase(); if(!ex) return "";
-    const m=ex.match(/^[A-Z]+(?=[^A-Z]|$)/); const keep=m&&m[0].length<ex.length?m[0]:"";
-    return keep+[...ex.slice(keep.length)].map(c=>/[0-9]/.test(c)?"#":/[A-Z]/.test(c)?"@":c).join("");
-  }
-
   // ---------- matching ----------
+  // "Starts with" (like 5426) is the normal way to look. A row with # @ or * in it is read as a pattern instead.
+  const isPattern=p=>/[#@*]/.test(p);
+  const ham1=(a,b)=>{ if(a.length!==b.length) return false; let d=0; for(let i=0;i<a.length;i++) if(a[i]!==b[i]&&++d>1) return false; return true; };
+  const looseCh=ch=>slotRe({k:"lit",c:ch},true);
+  // Everything on one page that could be a serial for this row: [{v, fixed, n (times seen), code}]
+  function candidates(pg,P,c){
+    const out=new Map();
+    const add=(v,fixed,code)=>{ v=v.toUpperCase(); const o=out.get(v); if(o){o.n++; o.code=o.code||code; o.fixed=o.fixed&&fixed;} else out.set(v,{v,fixed,code,n:1}); };
+    (pg.codes||[]).forEach(raw=>{ const v=String(raw).trim().toUpperCase();
+      if(c){ c.strict.lastIndex=0; const m=c.strict.exec(v); if(m&&m[1].length===v.length) add(canon(v,c.slots).v,false,true); }
+      else if(v.replace(/\s/g,"").startsWith(P)) add(v.replace(/\s/g,""),false,true); });
+    if(c){
+      const re=pg.ocr?c.loose:c.strict; re.lastIndex=0; let m;
+      while((m=re.exec(pg.text))){ const r=canon(m[1],c.slots); add(r.v,pg.ocr&&r.fixed,false); }
+    }else{
+      const head=pg.ocr?[...P].map(looseCh).join(""):[...P].map(ch=>/[A-Za-z]/.test(ch)?`[${ch.toUpperCase()}${ch.toLowerCase()}]`:reEsc(ch)).join("");
+      const re=new RegExp("(?<![A-Za-z0-9])"+head+(pg.ocr?"[A-Za-z0-9|]*":"[A-Za-z0-9]*")+"(?:-[A-Za-z0-9]+)*","g"); let m;
+      while((m=re.exec(pg.text))){
+        let fixed=false;
+        // The start is what was typed. On scanned pages the rest is cleaned up: in a number that's mostly digits, look-alike letters become digits.
+        let tail=m[0].replace(new RegExp("^"+head),"");
+        if(pg.ocr){ const digits=(tail.match(/[0-9]/g)||[]).length;
+          if(tail.length&&digits/tail.length>=0.6){ const t2=tail.replace(/[^0-9-]/g,ch=>TO_DIGIT[ch]||ch); if(t2!==tail){fixed=true; tail=t2;} } }
+        const startOk=m[0].slice(0,m[0].length-tail.length).toUpperCase()===P||!pg.ocr;
+        add(P+tail,fixed||!startOk,false);
+      }
+    }
+    return [...out.values()];
+  }
   function results(){
     return pats.map((pt,pi)=>{
-      const c=compile(pt.p);
-      const out={pi, p:pt.p.trim(), want:parseInt(pt.n,10)||0, list:[], near:[], c};
-      if(!c) return out;
+      const p=pt.p.trim(), P=p.toUpperCase().replace(/\s/g,"");
+      const c=isPattern(p)?compile(p):null;
+      const out={pi, p, want:parseInt(pt.n,10)||0, list:[], near:[], c:(c||P)?{prefix:c?c.prefix:P}:null};
+      if(!out.c) return out;
       const found=new Map();   // serial -> {pages:Set, check}
       pages.forEach((pg,idx)=>{
-        const re=pg.ocr?c.loose:c.strict; re.lastIndex=0; let m;
-        const seen=new Set();
-        while((m=re.exec(pg.text))){
-          const {v,fixed}=pg.ocr?canon(m[1],c.slots):{v:canon(m[1],c.slots).v,fixed:false};
-          if(seen.has(v)) continue; seen.add(v);
-          const f=found.get(v)||{pages:new Set(),check:true};
-          f.pages.add(idx); f.check=f.check&&fixed; found.set(v,f);
-        }
+        // Barcodes first (exact), then printed text by how often it was read. A printed read one character off
+        // from something already kept on this page is the same serial misread, so it's dropped.
+        const cand=candidates(pg,P,c).sort((a,b)=>(b.code-a.code)||(b.n-a.n));
+        const kept=[];
+        cand.forEach(x=>{
+          if(!x.code&&kept.some(k=>ham1(k.v,x.v))) return;
+          kept.push(x);
+          const f=found.get(x.v)||{pages:new Set(),check:true,code:false};
+          f.pages.add(idx); f.code=f.code||x.code; f.check=f.check&&!x.code&&(pg.ocr||x.fixed); found.set(x.v,f);
+        });
       });
       byHand.filter(h=>h.pi===pi).forEach(h=>{ if(!found.has(h.v)) found.set(h.v,{pages:new Set(),check:false,hand:true}); });
-      out.list=[...found.entries()].filter(([v])=>!removed.has(pi+"|"+v)).map(([v,f])=>({v,pages:[...f.pages].sort((a,b)=>a-b),check:f.check&&!f.hand,hand:!!f.hand,dup:f.pages.size>1}));
-      out.list.sort((a,b)=>(a.pages[0]??1e9)-(b.pages[0]??1e9)||a.v.localeCompare(b.v,undefined,{numeric:true}));
-      // Close, but not matching: words that start like the pattern but are a character or two off.
-      if(c.prefix.length>=2){
+      out.list=[...found.entries()].filter(([v])=>!removed.has(pi+"|"+v)).map(([v,f])=>({v,pages:[...f.pages].sort((a,b)=>a-b),check:f.check&&!f.hand,hand:!!f.hand,code:!!f.code,dup:f.pages.size>1}));
+      // Most serials of one kind are the same length; flag the odd ones.
+      const lens=new Map(); out.list.forEach(x=>lens.set(x.v.length,(lens.get(x.v.length)||0)+1));
+      const common=[...lens.entries()].sort((a,b)=>b[1]-a[1])[0];
+      if(common&&out.list.length>=3) out.list.forEach(x=>{ x.odd=!x.hand&&x.v.length!==common[0]; });
+      // Anything to look at (doubled, check, odd length) goes first, then the rest in page order.
+      const flag=x=>(x.dup||x.check||x.odd)?0:1;
+      out.list.sort((a,b)=>flag(a)-flag(b)||(a.pages[0]??1e9)-(b.pages[0]??1e9)||a.v.localeCompare(b.v,undefined,{numeric:true}));
+      if(c&&c.prefix.length>=2){
         const have=new Set(out.list.map(x=>x.v.replace(/[-–—_\s]/g,""))), near=new Map();
-        const wre=new RegExp("(?<![A-Za-z0-9])"+[...c.prefix].map(ch=>slotRe({k:"lit",c:ch},true)).join("")+"[A-Za-z0-9\\-–—_]{0,40}","g");
+        const wre=new RegExp("(?<![A-Za-z0-9])"+[...c.prefix].map(looseCh).join("")+"[A-Za-z0-9\\-–—_]{0,40}","g");
         pages.forEach((pg,idx)=>{ wre.lastIndex=0; let m; while((m=wre.exec(pg.text))){
           const w=m[0], flat=w.replace(/[-–—_]/g,"").toUpperCase(), plen=c.slots.filter(s=>!(s.k==="lit"&&/[-–—_\s]/.test(s.c))).length;
           if(Math.abs(flat.length-plen)>2||have.has(flat)) continue;
-          if(out.list.some(x=>x.v.replace(/[-–—_\s]/g,"")===flat)) continue;
           if(!near.has(w)) near.set(w,idx);
         }});
         out.near=[...near.entries()].slice(0,40).map(([w,idx])=>({w,idx}));
@@ -416,6 +444,68 @@ details.cmpd>.card{margin-top:12px}
       return ops.fnArray.some(f=>f===O.paintImageXObject||f===O.paintJpegXObject||f===O.paintInlineImageXObject||f===O.paintImageXObjectRepeat);
     }catch(e){ return false }
   }
+  // ---------- barcodes ----------
+  // Serial stickers and packing lists usually have a barcode under or over each number. Barcodes read exactly,
+  // so they're used first; the printed text only fills in what has no barcode.
+  let zxPrep=false;
+  function barcodeReader(){
+    if(!window.ZXingWASM) return null;
+    if(!zxPrep){ try{ ZXingWASM.prepareZXingModule({overrides:{locateFile:(p,pre)=>p.endsWith(".wasm")?"https://unpkg.com/zxing-wasm@3.1.6/dist/reader/zxing_reader.wasm":pre+p}}); }catch(e){} zxPrep=true; }
+    return ZXingWASM;
+  }
+  let zxQueue=Promise.resolve();
+  // A page full of barcodes reads best in overlapping strips, turned pure black and white first
+  // (the soft grey edges of a rendered scan throw the reader off). Strips run across the page, or down it
+  // when the page was scanned sideways. One more pass over the whole page catches square (QR) codes.
+  function readCodes(c){
+    const zx=barcodeReader(); if(!zx) return Promise.resolve(null);
+    const p=zxQueue.then(async()=>{
+      const W=c.width, H=c.height, bw=canvasOf(W,H), bx=bw.getContext("2d",{willReadFrequently:true});
+      bx.drawImage(c,0,0);
+      const img=bx.getImageData(0,0,W,H), d=img.data;
+      for(let i=0;i<d.length;i+=4){ const v=(0.3*d[i]+0.59*d[i+1]+0.11*d[i+2])<128?0:255; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; }
+      bx.putImageData(img,0,0);
+      // Each read keeps where on the page it was. Now and then a strip misreads a barcode as a different number;
+      // when two numbers sit in the same spot, the one read more often wins.
+      const reads=new Map();
+      const add=(r,dx,dy)=>r.forEach(x=>{ if(!x.isValid||!x.text) return; const v=x.text.trim(), q=x.position||{};
+        const pts=[q.topLeft,q.topRight,q.bottomLeft,q.bottomRight].filter(Boolean);
+        const box=pts.length?{x0:Math.min(...pts.map(p=>p.x))+dx,x1:Math.max(...pts.map(p=>p.x))+dx,y0:Math.min(...pts.map(p=>p.y))+dy,y1:Math.max(...pts.map(p=>p.y))+dy}:null;
+        const o=reads.get(v)||{n:0,boxes:[]}; o.n++; if(box) o.boxes.push(box); reads.set(v,o); });
+      const strips=async across=>{
+        const len=across?H:W, size=Math.round(len/12), step=Math.round(size/2);
+        for(let o=0;o<len;o+=step){ const n=Math.min(size,len-o); if(n<40) break;
+          const part=across?bx.getImageData(0,o,W,n):bx.getImageData(o,0,n,H);
+          add(await zx.readBarcodes(part,{formats:["Linear-Codes"],maxNumberOfSymbols:80,tryHarder:true,tryRotate:!across}),across?0:o,across?o:0);
+        }
+      };
+      await strips(true);
+      if(reads.size<3) await strips(false);
+      add(await zx.readBarcodes(img,{formats:["QRCode","DataMatrix","PDF417","Aztec","MicroQRCode"],maxNumberOfSymbols:100,tryHarder:true}),0,0);
+      // Same spot: mostly the same left-to-right span and less than about a fifth of an inch apart up and down.
+      const near=Math.max(W,H)/11/5;
+      const same=(a,b)=>{ const ov=Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0), wd=Math.min(a.x1-a.x0,b.x1-b.x0);
+        return wd>0&&ov>0.6*wd&&Math.abs((a.y0+a.y1)/2-(b.y0+b.y1)/2)<near; };
+      const list=[...reads.entries()];
+      const clash=(o,q)=>o.boxes.some(b=>q.boxes.some(c=>same(b,c)));
+      // A tie gets a few more looks at just that spot, in different shades of black and white.
+      for(const [v,o] of list) for(const [w,q] of list){
+        if(w<=v||!clash(o,q)||o.n!==q.n) continue;
+        const b=o.boxes[0], pad=near*2, x=Math.max(0,Math.floor(b.x0-pad)), y=Math.max(0,Math.floor(b.y0-pad));
+        const cw=Math.min(W-x,Math.ceil(b.x1-b.x0+2*pad)), ch=Math.min(H-y,Math.ceil(b.y1-b.y0+2*pad));
+        for(const t of [90,160,200]){
+          const part=c.getContext("2d").getImageData(x,y,cw,ch), pd=part.data;
+          for(let i=0;i<pd.length;i+=4){ const g=(0.3*pd[i]+0.59*pd[i+1]+0.11*pd[i+2])<t?0:255; pd[i]=pd[i+1]=pd[i+2]=g; }
+          (await zx.readBarcodes(part,{formats:["Linear-Codes"],maxNumberOfSymbols:4,tryHarder:true})).forEach(r=>{
+            if(r.isValid&&r.text.trim()===v) o.n++; if(r.isValid&&r.text.trim()===w) q.n++; });
+        }
+      }
+      const keep=list.filter(([v,o])=>!list.some(([w,q])=>w!==v&&q.n>o.n&&clash(o,q)));
+      return keep.map(e=>e[0]);
+    });
+    zxQueue=p.catch(()=>{});
+    return p.catch(()=>null);
+  }
   async function readPage(f,pdf,i){
     const page=await pdf.getPage(i+1);
     const tc=await page.getTextContent();
@@ -423,27 +513,32 @@ details.cmpd>.card{margin-top:12px}
     let text="", lastY=null;
     tc.items.forEach(it=>{ const y=it.transform?Math.round(it.transform[5]):0; text+=(lastY!==null&&Math.abs(y-lastY)>2?"\n":" ")+it.str; lastY=y; });
     const scan=(await isScan(page))||text.replace(/\s/g,"").length<40;
-    const vp0=page.getViewport({scale:1});
-    const vp=page.getViewport({scale:scan?Math.min(3,2600/Math.max(vp0.width,vp0.height)):Math.min(2,1400/Math.max(vp0.width,vp0.height))});
+    const vp0=page.getViewport({scale:1}), long=Math.max(vp0.width,vp0.height);
+    // About 300 dots per inch: small barcodes need it.
+    const vp=page.getViewport({scale:Math.min(300/72,4800/long)});
     const c=canvasOf(Math.ceil(vp.width),Math.ceil(vp.height)), ctx=c.getContext("2d");
     ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
     await page.render({canvasContext:ctx,viewport:vp}).promise;
-    let img="", ocr=false, failed=false;
+    const codes=await readCodes(c);
+    let img="", ocr=false, failed=false, skippedText=false;
+    const codeFailed=codes===null;
     if(scan){
-      try{
+      if((codes||[]).length>=3&&!$("#alsoText").checked) skippedText=true;
+      else try{
         const o=await ocrSetup();
-        const orig=canvasOf(c.width,c.height); orig.getContext("2d").drawImage(c,0,0);
+        const sm=scaled(c,2600);
+        const orig=canvasOf(sm.width,sm.height); orig.getContext("2d").drawImage(sm,0,0);
         const angle=await uprightAngle(o,orig);
         img=scaled(rotated(orig,angle),1400).toDataURL("image/jpeg",0.8);
-        liftHighlights(c);
-        const up=rotated(c,angle);
+        liftHighlights(sm);
+        const up=rotated(sm,angle);
         const [r1,r2]=await Promise.all([o.blocks(up),o.bits(up)]);
         text+="\n"+(r1.data.text||"")+"\n"+(r2.data.text||""); ocr=true;
       }catch(e){ failed=true }
     }
     if(!img) img=scaled(c,1400).toDataURL("image/jpeg",0.8);
     page.cleanup();
-    return {file:f.name, n:i+1, text, ocr, failed, img};
+    return {file:f.name, n:i+1, text, codes:codes||[], ocr, failed, codeFailed, skippedText, img};
   }
   const MAX_PAGES=400;
   async function readFile(f){
@@ -456,7 +551,8 @@ details.cmpd>.card{margin-top:12px}
       const lane=async()=>{ while(next<n){ const i=next++; f.pages[i]=await readPage(f,pdf,i); f.done++; rebuildPages(); render(); } };
       await Promise.all([lane(),lane()]);
       f.status="done"; f.tooLong=pdf.numPages>MAX_PAGES;
-      if(f.pages.some(p=>p.failed)) f.warn="Some scanned pages couldn't be read (the text reader didn't load). Check your connection and try again.";
+      f.warn=[f.pages.some(p=>p.failed)?"Some scanned pages couldn't be read (the text reader didn't load).":"", f.pages.some(p=>p.codeFailed)?"The barcode reader didn't load, so barcodes weren't read.":""].filter(Boolean).join(" ");
+      if(f.warn) f.warn+=" Check your connection and try again.";
     }catch(e){ f.status="error"; f.error="Couldn't open this PDF"+(e&&e.name==="PasswordException"?" (password protected)":""); }
     finally{ try{pdf&&pdf.destroy()}catch(e){} }
     rebuildPages(); render();
@@ -476,9 +572,9 @@ details.cmpd>.card{margin-top:12px}
   // ---------- drawing the page ----------
   function patRows(){
     $("#pats").innerHTML=pats.map((pt,i)=>`<div class="pat">
-      <label>Pattern${pats.length>1?" "+(i+1):""}<input type="text" data-p="${i}" value="${esc(pt.p)}" placeholder="SN####-#####" autocomplete="off" spellcheck="false"></label>
+      <label>Starts with${pats.length>1?" ("+(i+1)+")":""}<input type="text" data-p="${i}" value="${esc(pt.p)}" placeholder="5426" autocomplete="off" spellcheck="false"></label>
       <label>Count<input type="number" min="0" data-n="${i}" value="${esc(pt.n)}" placeholder="—"></label>
-      <button class="btn x" data-del="${i}" title="Remove this pattern" aria-label="Remove pattern ${i+1}" ${pats.length<2?"disabled":""}>✕</button>
+      <button class="btn x" data-del="${i}" title="Remove this row" aria-label="Remove row ${i+1}" ${pats.length<2?"disabled":""}>✕</button>
     </div>`).join("");
   }
   function statusOf(r){
@@ -508,7 +604,7 @@ details.cmpd>.card{margin-top:12px}
     const st=$("#status");
     if(busy){ const d=files.reduce((a,f)=>a+(f.done||0),0), t=files.reduce((a,f)=>a+(f.total||0),0); st.className="pill busy"; st.textContent=`Reading page ${Math.min(d+1,t||1)} of ${t||"…"}`; }
     else if(!pages.length){ st.className="pill busy"; st.textContent=files.some(f=>f.status==="error")?"Couldn't read the PDF":"Waiting for a PDF"; }
-    else if(!active.length){ st.className="pill warn"; st.textContent="Type a pattern to look for"; }
+    else if(!active.length){ st.className="pill warn"; st.textContent="Type how the serials start"; }
     else if(allWant){ const s=total===want?"ok":total<want?"warn":"bad"; st.className="pill "+s; st.textContent=total===want?`All ${want} found`:total<want?`${want-total} missing`:`${total-want} more than expected`; }
     else { st.className="pill ok"; st.textContent=`${total} found`; }
     $("#copyAll").disabled=!total; $("#dlx").disabled=!total;
@@ -518,15 +614,17 @@ details.cmpd>.card{margin-top:12px}
       const notes=[];
       if(r.want&&r.list.length<r.want) notes.push(`<b>${r.want-r.list.length} not found.</b> Look at the orange pages below and at <b>Close, but not matching</b>, then add any it missed by hand.`);
       if(r.want&&r.list.length>r.want) notes.push(`<b>${r.list.length-r.want} more than expected.</b> Look for <b>Doubled</b> or wrong reads and take them out with ✕.`);
-      if(checks) notes.push(`${checks} marked <b>Check</b>: a letter and number looked alike, so make sure it's right.`);
+      if(checks) notes.push(`${checks} marked <b>Check</b>: read from the printed text, not a barcode, so make sure it's right.`);
+      const odds=r.list.filter(x=>x.odd).length;
+      if(odds) notes.push(`${odds} marked <b>Odd length</b>: longer or shorter than the others, so it may be a different number that starts the same way.`);
       if(dups) notes.push(`${dups} <b>Doubled</b>: the same serial is on more than one page.`);
       return `<section class="rc ${s.cls}">
         <div class="rc-top"><h3>${esc(r.p)}</h3><span class="pill ${s.cls}">${esc(s.txt)}</span></div>
         ${notes.length?`<div class="msg">${notes.join("<br>")}</div>`:""}
-        ${r.list.length?`<div class="grid">${r.list.map((x,i)=>`<div class="sn ${x.dup?"dup":x.check?"check":""}"><span class="i">${i+1}</span><span class="v">${esc(x.v)}</span><span class="meta">
+        ${r.list.length?`<div class="grid">${r.list.map((x,i)=>`<div class="sn ${x.dup?"dup":x.check||x.odd?"check":""}"><span class="i">${i+1}</span><span class="v">${esc(x.v)}</span><span class="meta">
           ${x.hand?`<span class="tag hand">By hand</span>`:x.pages.map(p=>`<button class="tag pg" data-page="${p}" data-hl="${esc(x.v)}">${esc(pageShort(p))}</button>`).join("")}
-          ${x.dup?`<span class="tag dup">Doubled</span>`:x.check?`<span class="tag check">Check</span>`:""}
-          </span><button class="rm" data-rm="${r.pi}|${esc(x.v)}" title="Take out" aria-label="Take out ${esc(x.v)}">✕</button></div>`).join("")}</div>`:`<div class="empty">Nothing found yet that looks like <b style="font-family:var(--mono)">${esc(r.p)}</b>.${busy?" Still reading…":" Check the pattern, or click a page below to see what the serials look like."}</div>`}
+          ${x.dup?`<span class="tag dup">Doubled</span>`:""}${x.check?`<span class="tag check">Check</span>`:""}${x.odd?`<span class="tag check">Odd length</span>`:""}
+          </span><button class="rm" data-rm="${r.pi}|${esc(x.v)}" title="Take out" aria-label="Take out ${esc(x.v)}">✕</button></div>`).join("")}</div>`:`<div class="empty">Nothing found yet that starts with <b style="font-family:var(--mono)">${esc(r.p)}</b>.${busy?" Still reading…":" Check the start, or click a page below to see what the serials look like."}</div>`}
         ${r.near.length?`<div class="near"><h4>Close, but not matching · click to add</h4><div class="list">${r.near.map(n=>`<button data-near="${r.pi}" data-w="${esc(n.w)}" title="Found on ${esc(pageShort(n.idx))}">${esc(n.w)} <small>${esc(pageShort(n.idx))}</small></button>`).join("")}</div></div>`:""}
         <div class="addh"><h4>Add by hand</h4><input type="text" data-addv="${r.pi}" placeholder="Type a serial" spellcheck="false"><button class="btn small" data-add="${r.pi}">Add</button>
           ${[...removed].some(k=>k.startsWith(r.pi+"|"))?`<button class="btn small" data-undo="${r.pi}" style="margin-left:auto">Put back ${[...removed].filter(k=>k.startsWith(r.pi+"|")).length} taken out</button>`:""}</div>
@@ -592,14 +690,10 @@ details.cmpd>.card{margin-top:12px}
     save(); patRows(); render();
   });
   $("#addPat").onclick=()=>{ pats.push({p:"",n:""}); save(); patRows(); render(); $(`[data-p="${pats.length-1}"]`).focus(); };
-  function useExample(){
-    const ex=$("#example").value, p=patternFrom(ex); if(!p){ $("#example").focus(); toast("Type one serial first"); return; }
-    let i=pats.findIndex(x=>!x.p.trim()); if(i<0){ pats.push({p:"",n:""}); i=pats.length-1; }
-    pats[i].p=p; save(); patRows(); render(); $("#example").value="";
-    const n=$(`[data-n="${i}"]`); if(n&&!n.value){ n.focus(); toast(`Pattern ${p} · now type how many there should be`); }
-  }
-  $("#makePat").onclick=useExample;
-  $("#example").addEventListener("keydown",e=>{ if(e.key==="Enter") useExample(); });
+  const alsoBox=$("#alsoText");
+  try{ alsoBox.checked=localStorage.getItem("serialFinder.alsoText")==="on" }catch(e){}
+  alsoBox.addEventListener("change",()=>{ try{localStorage.setItem("serialFinder.alsoText",alsoBox.checked?"on":"off")}catch(e){}
+    if(alsoBox.checked&&pages.some(p=>p.skippedText)){ toast("Reading the printed numbers on those pages too…"); files.forEach(f=>{ if(f.status==="done"&&f.pages.some(p=>p&&p.skippedText)) queue=queue.then(()=>readFile(f)); }); } });
   $("#clearAll").onclick=()=>{ files=[]; pages=[]; removed.clear(); byHand=[]; queue=Promise.resolve(); render(); toast("Cleared the scan. Your patterns are kept."); };
 
   document.addEventListener("click",e=>{
@@ -622,7 +716,7 @@ details.cmpd>.card{margin-top:12px}
   $("#expectList").addEventListener("input",()=>{ clearTimeout(tmr); tmr=setTimeout(compare,250); });
 
   // ---------- copy / download ----------
-  function allRows(){ return lastRes.filter(r=>r.c).flatMap(r=>r.list.map(x=>({pattern:r.p,v:x.v,pages:x.hand?"By hand":x.pages.map(p=>pages[p].label).join(", "),note:[x.dup?"Doubled":"",x.check?"Check":""].filter(Boolean).join(", ")}))); }
+  function allRows(){ return lastRes.filter(r=>r.c).flatMap(r=>r.list.map(x=>({pattern:r.p,v:x.v,pages:x.hand?"By hand":x.pages.map(p=>pages[p].label).join(", "),read:x.hand?"By hand":x.code?"Barcode":"Printed text",note:[x.dup?"Doubled":"",x.check?"Check":"",x.odd?"Odd length":""].filter(Boolean).join(", ")}))); }
   $("#copyAll").onclick=async()=>{
     const txt=allRows().map(r=>r.v).join("\n");
     try{ await navigator.clipboard.writeText(txt); }
@@ -632,18 +726,18 @@ details.cmpd>.card{margin-top:12px}
   $("#dlx").onclick=async()=>{
     const rows=allRows(); if(!rows.length) return;
     const d=new Date(), day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    const summary=lastRes.filter(r=>r.c).map(r=>({Pattern:r.p,"Should be":r.want||"",Found:r.list.length,Result:statusOf(r).txt}));
-    const list=rows.map((r,i)=>({"#":i+1,Serial:r.v,Pattern:r.pattern,Page:r.pages,Note:r.note}));
+    const summary=lastRes.filter(r=>r.c).map(r=>({"Starts with":r.p,"Should be":r.want||"",Found:r.list.length,Result:statusOf(r).txt}));
+    const list=rows.map((r,i)=>({"#":i+1,Serial:r.v,"Starts with":r.pattern,Page:r.pages,"Read from":r.read,Note:r.note}));
     let blob, name;
     if(window.XLSX){
       const wb=XLSX.utils.book_new();
-      const s1=XLSX.utils.json_to_sheet(list); s1["!cols"]=[{wch:5},{wch:24},{wch:20},{wch:24},{wch:16}];
+      const s1=XLSX.utils.json_to_sheet(list); s1["!cols"]=[{wch:5},{wch:24},{wch:12},{wch:20},{wch:13},{wch:18}];
       const s2=XLSX.utils.json_to_sheet(summary); s2["!cols"]=[{wch:22},{wch:10},{wch:8},{wch:30}];
       XLSX.utils.book_append_sheet(wb,s1,"Serials"); XLSX.utils.book_append_sheet(wb,s2,"Summary");
       blob=new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}); name=`serials-${day}.xlsx`;
     }else{
       const q=v=>`"${String(v).replace(/"/g,'""')}"`;
-      blob=new Blob([["#,Serial,Pattern,Page,Note"].concat(list.map(r=>[r["#"],r.Serial,r.Pattern,r.Page,r.Note].map(q).join(","))).join("\r\n")],{type:"text/csv"}); name=`serials-${day}.csv`;
+      blob=new Blob([["#,Serial,Starts with,Page,Read from,Note"].concat(list.map(r=>[r["#"],r.Serial,r["Starts with"],r.Page,r["Read from"],r.Note].map(q).join(","))).join("\r\n")],{type:"text/csv"}); name=`serials-${day}.csv`;
     }
     try{
       if(downloads) await downloads.save({filename:name,data:blob});
