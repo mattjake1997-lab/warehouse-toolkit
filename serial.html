@@ -1,0 +1,658 @@
+<!DOCTYPE html><html lang="en"><head><script>/* Opened as a tab of the Warehouse Toolkit. Saving data and downloading files go through the toolkit page
+   (runtime.js), so every tab uses the same saved data. toolkitUse(name) gets that from the page. */
+if(window.parent===window){location.replace("index.html");}
+/* Company details (sites, addresses, names, weights...) come from the settings file imported on the toolkit page. */
+window.TK=(function(){try{return window.parent.toolkitRuntime.settings()||{}}catch(e){return {}}})();
+(function(){var inTab=window.parent!==window, top=null;
+try{if(inTab&&window.parent.claude&&window.parent.claude.use)top=window.parent.claude}catch(e){}
+window.toolkitSave=function(filename,data){return new Promise(function(res,rej){
+  var id=Math.random().toString(36).slice(2);
+  function h(e){var d=e.data;if(e.source===window.parent&&d&&d.type==="toolkit-saved"&&d.id===id){removeEventListener("message",h);d.ok?res({status:d.status||"saved"}):rej({code:d.code||"unavailable",message:d.message||""})}}
+  addEventListener("message",h);window.parent.postMessage({type:"toolkit-save",id:id,filename:filename,data:data},(location.origin&&location.origin!=="null")?location.origin:"*");});};
+window.toolkitUse=function(name){
+  if(inTab&&name==="downloads") return Promise.resolve({save:function(o){return window.toolkitSave(o.filename,o.data)}});
+  var c=top||(window.claude&&window.claude.use?window.claude:null);
+  if(!c)return Promise.resolve(null);
+  var p=Promise.resolve(c.use(name)).catch(function(){return null});
+  return (name==="db"&&c===top)?p.then(function(db){return db?wrapDb(db):db}):p;
+};
+/* The database belongs to the toolkit page, and it only accepts plain objects made on that page. Objects built in this tab
+   come from a different window, so every body, query value and option is copied over to the toolkit page before it is sent. */
+function tp(v){if(v===null||v===undefined||typeof v!=="object")return v;try{return window.parent.JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function wrapQuery(q){return {where:function(f,op,v){return wrapQuery(q.where(f,op,tp(v)))},orderBy:function(f,d){return wrapQuery(q.orderBy(f,d))},limit:function(n){return wrapQuery(q.limit(n))},
+  get:function(){return q.get()},onSnapshot:function(n,e){return q.onSnapshot(n,e)}}}
+function wrapDoc(d){return {id:d.id,path:d.path,get:function(){return d.get()},set:function(x){return d.set(tp(x))},update:function(x){return d.update(tp(x))},
+  delete:function(){return d["delete"]()},acquire:function(o){return d.acquire(tp(o))},onSnapshot:function(n,e){return d.onSnapshot(n,e)},collection:function(p){return wrapColl(d.collection(p))}}}
+function wrapColl(c){var w=wrapQuery(c);w.path=c.path;w.doc=function(id){return wrapDoc(id===undefined?c.doc():c.doc(id))};w.add=function(x){return c.add(tp(x)).then(wrapDoc)};return w}
+function wrapDb(db){return {doc:function(p){return wrapDoc(db.doc(p))},collection:function(p){return wrapColl(db.collection(p))}}}
+try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}details.howto{border-top:1px solid var(--line);padding-top:18px;margin-top:12px}
+details.howto summary{cursor:pointer;font-weight:600;font-size:15px;color:var(--ink);list-style:none;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+details.howto summary::before{content:"▸";font-size:11px}
+details[open].howto summary::before{content:"▾"}
+details.howto ol{margin:14px 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:88ch;font-size:14.5px}
+details.howto .more{color:var(--muted);font-size:13.5px;display:flex;flex-direction:column;gap:6px;max-width:88ch}
+details.howto .more b{color:var(--ink)}
+</style><!--toolkit-theme--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"><style>/* Toolkit theme. The :not(#id) raises this above the page's own light and dark settings. */
+html:root:not(#toolkit-theme){--bg:#000000;--panel:#0a0d0a;--ink:#eef2ee;--muted:#94a294;--line:#1a231a;--accent:#00c800;--display:"Inter",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono","Courier New",monospace;color-scheme:dark;--accent-ink:#001a00;--steel:#29e029;--ok:#3dba78;--ok-bg:#0a1f14;--warn:#e8b84b;--warn-bg:#1a1205;--bad:#f06060;--bad-bg:#1a0808;}
+body{background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-stretch:normal!important;letter-spacing:-.01em}
+h1 mark{background:none!important;color:var(--accent)}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#242f24;border-radius:3px}::-webkit-scrollbar-track{background:transparent}</style><!--/toolkit-theme--><!--toolkit-accent--><style>/* Purple marks secondary details (how-to sections, links, focus, selection). Green stays the main action color. */
+:root{--accent2:#964dff;--accent2-light:#b48bff}
+::selection{background:rgba(150,77,255,.45);color:#fff}
+:focus-visible{outline-color:var(--accent2-light)!important}
+:is(p,li,td,span) > a:not([class]){color:var(--accent2-light)}
+details>summary{color:var(--accent2-light)}
+details>summary::marker{color:var(--accent2)}
+details[open]{border-left:3px solid var(--accent2);padding-left:12px}
+
+</style><!--/toolkit-accent-->
+
+<title>Serial Finder</title>
+<style>
+/* Layout: two equal cards on top (the scan, what to look for), three number tiles, then one result card per pattern. */
+:root{
+  --bg:#eef0f2; --panel:#ffffff; --ink:#1b2128; --muted:#5d6874; --line:#d3d8de;
+  --accent:#00c800; --accent-ink:#001a00; --steel:#2f4a63;
+  --ok:#1f7a4d; --ok-bg:#e1f2e8; --warn:#9a6200; --warn-bg:#fbefd2; --bad:#b3261e; --bad-bg:#fbe3e1;
+  --display:"Inter",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+html:root:not(#toolkit-theme){--ok:#4ade80;--ok-bg:#0d2a17;--warn:#fbbf24;--warn-bg:#2e2307;--bad:#ff8a80;--bad-bg:#3a1513}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 16px 48px;display:grid;gap:18px}
+header{display:grid;gap:6px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,5vw,38px);line-height:1.05;margin:0}
+.sub{color:var(--muted);margin:0;max-width:70ch}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:12px;align-content:start;min-width:0}
+.card h2{margin:0;font-size:17px;display:flex;align-items:center;gap:10px}
+.card h2 .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:800}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:26px 16px;display:grid;justify-items:center;gap:6px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;min-height:150px;align-content:center}
+.drop:hover,.drop.over{border-color:var(--accent)}
+.drop.over{background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.drop strong{font-size:18px}
+.drop span{color:var(--muted);font-size:13.5px}
+.files{display:grid;gap:6px;font-size:13.5px}
+.file{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.file b{overflow-wrap:anywhere;font-weight:600}
+.file span{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.pat{display:grid;grid-template-columns:minmax(0,1fr) 92px 34px;gap:8px;align-items:end}
+.pat label{display:grid;gap:3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+input[type=text],input[type=number],textarea{font:600 15px var(--mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%;min-width:0}
+input[type=number]{text-align:center}
+input:focus-visible,textarea:focus-visible,.btn:focus-visible,.drop:focus-visible{outline:2px solid var(--accent2,#964dff);outline-offset:2px}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.hint code{font-family:var(--mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.ex{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.btn{font:600 14px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:8px 13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{font-size:12.5px;padding:5px 9px}
+.btn.x{padding:0;width:34px;height:38px;color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row-btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:2px;text-align:center}
+.tile b{font:700 30px var(--mono);font-variant-numeric:tabular-nums;line-height:1.1}
+.tile span{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile.ok b{color:var(--ok)} .tile.warn b{color:var(--warn)} .tile.bad b{color:var(--bad)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.bar .acts{display:flex;flex-wrap:wrap;gap:8px}
+.res{display:grid;gap:14px}
+.rc{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;overflow:hidden}
+.rc.ok{border-left-color:var(--ok)} .rc.warn{border-left-color:var(--warn)} .rc.bad{border-left-color:var(--bad)}
+.rc-top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.rc-top h3{margin:0;font:700 17px var(--mono);overflow-wrap:anywhere}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;border-radius:999px;padding:4px 12px}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ok);background:var(--ok-bg)} .pill.warn{color:var(--warn);background:var(--warn-bg)} .pill.bad{color:var(--bad);background:var(--bad-bg)}
+.pill.busy{color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.msg{padding:10px 16px;font-size:13.5px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--warn) 8%,var(--panel))}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;padding:14px 16px}
+.sn{display:grid;grid-template-columns:24px minmax(0,1fr) auto;grid-template-areas:"i v rm" "i meta meta";column-gap:8px;row-gap:3px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 6px 6px 8px;font-size:13px}
+.sn .i{grid-area:i;align-self:start;padding-top:2px;color:var(--muted);font:12px var(--mono);text-align:right}
+.sn .v{grid-area:v;font:600 14px var(--mono);overflow-wrap:anywhere}
+.sn .rm{grid-area:rm}
+.sn .meta{grid-area:meta;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:18px}
+.sn.check{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 8%,var(--panel))}
+.sn.dup{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 7%,var(--panel))}
+.tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.tag.pg{background:color-mix(in srgb,var(--muted) 14%,transparent);color:var(--muted);cursor:pointer;border:0;font-family:var(--body)}
+.tag.pg:hover{color:var(--ink)}
+.tag.check{color:var(--warn);background:var(--warn-bg)} .tag.dup{color:var(--bad);background:var(--bad-bg)} .tag.hand{color:var(--steel);background:color-mix(in srgb,var(--steel) 14%,transparent)}
+.rm{border:0;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;line-height:1}
+.rm:hover{color:var(--bad)}
+.near{padding:0 16px 14px;display:grid;gap:6px}
+.near h4,.addh h4{margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.near .list{display:flex;flex-wrap:wrap;gap:6px}
+.near button{font:600 13px var(--mono);border:1px dashed var(--warn);background:var(--panel);color:var(--ink);border-radius:6px;padding:3px 8px;cursor:pointer}
+.near button small{font-family:var(--body);color:var(--muted);font-weight:500}
+.addh{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 50%,var(--panel))}
+.addh input{max-width:260px}
+.empty{padding:16px;color:var(--muted);font-size:14px}
+.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.pages button{font:600 13px var(--mono);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:6px 0;cursor:pointer;display:grid;gap:0;line-height:1.2}
+.pages button small{font:600 10.5px var(--body);color:var(--muted)}
+.pages button.zero{border-color:var(--warn);background:var(--warn-bg)}
+.pages button.zero small{color:var(--warn)}
+.pages button:hover{border-color:var(--accent)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cmp textarea{min-height:140px;font-size:13.5px;resize:vertical}
+.cmp .out{display:grid;gap:10px;align-content:start}
+.cmp .box{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:4px}
+.cmp .box b{font-size:13px}
+.cmp .box div{font:13px var(--mono);overflow-wrap:anywhere;color:var(--muted)}
+details.howto summary,details.cmpd summary{cursor:pointer;font-weight:600;font-size:15px;list-style:none;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+details.howto summary::before,details.cmpd summary::before{content:"▸";font-size:11px}
+details[open].howto summary::before,details[open].cmpd summary::before{content:"▾"}
+details.howto ol{margin:14px 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:88ch;font-size:14.5px}
+details.cmpd>.card{margin-top:12px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);z-index:30}
+.viewer{position:fixed;inset:0;background:rgb(0 0 0 / .7);display:grid;place-items:center;z-index:20;padding:16px}
+.viewer-in{background:var(--panel);border-radius:12px;max-width:min(900px,100%);max-height:94vh;display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+.viewer-top{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line)}
+.viewer-top b{font-size:15px}
+.viewer-top span{font:13px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.viewer img{display:block;max-width:100%;max-height:calc(94vh - 60px);margin:auto;background:#fff;overflow:auto}
+.viewer .scroll{overflow:auto}
+@media (max-width:760px){.two,.cmp{grid-template-columns:1fr}.tiles{gap:8px}.tile b{font-size:22px}}
+</style>
+</head><body>
+<div class="wrap">
+  <header>
+    <h1>Serial Finder</h1>
+    <p class="sub">Scan a stack of paperwork into one PDF, tell it what the serial numbers look like and how many there should be, and it finds them all and tells you if any are missing or doubled.</p>
+  </header>
+
+  <div class="two">
+    <section class="card">
+      <h2><span class="n">1</span>Upload the scan</h2>
+      <label class="drop" id="drop" tabindex="0">
+        <strong>Drop the PDF here</strong>
+        <span>or click to choose · scanned or digital · more than one is fine</span>
+        <input id="picker" type="file" accept="application/pdf,.pdf" multiple hidden>
+      </label>
+      <div class="files" id="files"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">2</span>What to look for</h2>
+      <div class="ex">
+        <label class="pat-l" style="display:grid;gap:3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Paste one real serial as an example
+          <input type="text" id="example" placeholder="e.g. SN4821-77310" autocomplete="off" spellcheck="false"></label>
+        <button class="btn" id="makePat">Make pattern</button>
+      </div>
+      <div id="pats" style="display:grid;gap:8px"></div>
+      <p class="hint"><code>#</code> any number · <code>@</code> any letter · <code>*</code> either · anything else must match exactly. Example: <code>SN####-#####</code></p>
+      <div class="row-btns">
+        <button class="btn small" id="addPat">+ Add another pattern</button>
+        <button class="btn small" id="clearAll">Start over</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="bar">
+    <div class="pill busy" id="status">Waiting for a PDF</div>
+    <div class="acts">
+      <button class="btn" id="copyAll" disabled>Copy all serials</button>
+      <button class="btn primary" id="dlx" disabled>Download Excel</button>
+    </div>
+  </div>
+
+  <div class="res" id="res"></div>
+
+  <section class="card" id="pagesCard" hidden>
+    <h2>Serials found on each page</h2>
+    <p class="hint">Orange pages had none. Click any page to look at it.</p>
+    <div class="pages" id="pages"></div>
+  </section>
+
+  <details class="cmpd">
+    <summary>Have the list of serials you expect? Compare it</summary>
+    <div class="card">
+      <div class="cmp">
+        <label style="display:grid;gap:4px;font-size:13px;font-weight:600">Paste the expected serials (one per line, or straight from Excel)
+          <textarea id="expectList" spellcheck="false" placeholder="SN4821-77310&#10;SN4821-77311&#10;…"></textarea></label>
+        <div class="out" id="cmpOut"><p class="hint">Paste a list to see which serials are missing from the scan and which were found but aren't on the list.</p></div>
+      </div>
+    </div>
+  </details>
+
+  <details class="howto">
+    <summary>How to use this</summary>
+    <ol>
+      <li><b>Scan the stack</b> into one PDF and drop it in box 1. Scanned pages take a few seconds each to read.</li>
+      <li><b>Tell it what the serials look like.</b> Easiest: paste one real serial in the example box and click <b>Make pattern</b>. Check the pattern: the start that's the same on every serial stays as letters; the rest becomes <code>#</code> (number) and <code>@</code> (letter).</li>
+      <li><b>Type how many there should be</b> in <b>Count</b>.</li>
+      <li><b>Read the result.</b> Green: found exactly that many. Orange: some are missing or extra. The orange <b>Check</b> tag means a letter and number looked alike (like O and 0) and it guessed. <b>Doubled</b> means the same serial is on more than one page.</li>
+      <li><b>Missing some?</b> Look at <b>Close, but not matching</b> and the orange pages with nothing found. Click a page to see it. Add any it missed with <b>Add by hand</b>, and take out wrong ones with ✕.</li>
+      <li><b>Copy all serials</b> to paste into Oracle or an email, or <b>Download Excel</b> for a list with the page each serial is on.</li>
+    </ol>
+  </details>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="vTitle">
+  <div class="viewer-in">
+    <div class="viewer-top"><div style="display:grid;min-width:0"><b id="vTitle">Page</b><span id="vSub"></span></div><button class="btn small" id="vClose">Close</button></div>
+    <div class="scroll"><img id="vImg" alt=""></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function(){
+  try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
+  const $=s=>document.querySelector(s);
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3200)}
+  let downloads=null;
+  try{ toolkitUse("downloads").then(d=>{downloads=d}).catch(()=>{}); }catch(e){}
+
+  // ---------- state ----------
+  // pages: every page read so far, across all files: {file, n (page number in its file), label, text, ocr, img}
+  let files=[], pages=[], reading=0;
+  let pats=[], removed=new Set(), byHand=[];   // byHand: {pat index key, serial}
+  const KEY="serialFinder.v1";
+  function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||"{}"); pats=Array.isArray(s.pats)&&s.pats.length?s.pats:[{p:"",n:""}]; }catch(e){ pats=[{p:"",n:""}] } }
+  function save(){ try{ localStorage.setItem(KEY,JSON.stringify({pats})) }catch(e){} }
+
+  // ---------- patterns ----------
+  // # = digit, @ = letter, * = letter or digit; anything else is that exact character (letters in any case).
+  // Scanned text mixes up look-alikes (O/0, I/1/l, S/5, B/8, Z/2), so on scanned pages each spot also accepts its
+  // look-alikes and the result is turned back into the right kind of character, marked "check".
+  const TO_DIGIT={O:"0",o:"0",D:"0",Q:"0",I:"1",l:"1","|":"1",i:"1",L:"1",S:"5",s:"5",B:"8",Z:"2",z:"2",G:"6",T:"7"};
+  const TO_LETTER={"0":"O","1":"I","5":"S","8":"B","2":"Z","6":"G"};
+  function slotsOf(p){
+    return [...String(p).trim()].map(c=>c==="#"?{k:"d"}:c==="@"?{k:"a"}:c==="*"?{k:"x"}:{k:"lit",c});
+  }
+  const reEsc=c=>c.replace(/[.*+?^${}()|[\]\\\/]/g,"\\$&");
+  const DASH="[-–—_]";
+  function slotRe(s,loose){
+    if(s.k==="d") return loose?"[0-9OoDQIl|iLSsBZzGT]":"[0-9]";
+    if(s.k==="a") return loose?"[A-Za-z0-9]":"[A-Za-z]";
+    if(s.k==="x") return "[A-Za-z0-9]";
+    const c=s.c;
+    if(/[-–—_]/.test(c)) return DASH;
+    if(c===" ") return "\\s?";
+    if(!loose) return /[A-Za-z]/.test(c)?`[${c.toUpperCase()}${c.toLowerCase()}]`:reEsc(c);
+    const alts=new Set([c,c.toUpperCase(),c.toLowerCase()]);
+    Object.entries(TO_DIGIT).forEach(([k,v])=>{ if(v===c) alts.add(k); if(k.toUpperCase()===c.toUpperCase()) alts.add(v); });
+    Object.entries(TO_LETTER).forEach(([k,v])=>{ if(v===c.toUpperCase()) alts.add(k); if(k===c) alts.add(v); });
+    return "(?:"+[...alts].map(reEsc).join("|")+")";
+  }
+  function compile(p){
+    const slots=slotsOf(p);
+    if(!slots.length) return null;
+    const body=loose=>slots.map(s=>slotRe(s,loose)).join("");
+    const edge="(?<![A-Za-z0-9])", end="(?![A-Za-z0-9])";
+    let prefix=""; for(const s of slots){ if(s.k!=="lit") break; prefix+=s.c; }
+    return {slots, strict:new RegExp(edge+"("+body(false)+")"+end,"g"), loose:new RegExp(edge+"("+body(true)+")"+end,"g"), prefix:prefix.replace(/[-–—_\s]/g,""), len:slots.length};
+  }
+  // Turn a loosely read match into the right characters for each spot. Returns {v, fixed}.
+  function canon(raw,slots){
+    let v="", fixed=false, i=0;
+    const chars=[...raw];
+    for(const s of slots){
+      let c=chars[i];
+      if(s.k==="lit"&&s.c===" "){ if(c&&/\s/.test(c)) i++; v+=" "; continue; }
+      i++;
+      if(c===undefined) break;
+      if(s.k==="d"){ if(!/[0-9]/.test(c)){ c=TO_DIGIT[c]||c; fixed=true; } }
+      else if(s.k==="a"){ if(/[0-9]/.test(c)){ c=TO_LETTER[c]||c; fixed=true; } c=c.toUpperCase(); }
+      else if(s.k==="x"){ c=c.toUpperCase(); }
+      else if(/[-–—_]/.test(s.c)){ c=s.c; }
+      else { if(c.toUpperCase()!==s.c.toUpperCase()) fixed=true; c=/[A-Za-z]/.test(s.c)?s.c.toUpperCase():s.c; }
+      v+=c;
+    }
+    return {v:v.trim(),fixed};
+  }
+  // Example serial -> pattern. The leading letters (the part every serial shares, like "SN") stay as they are.
+  function patternFrom(ex){
+    ex=String(ex).trim().toUpperCase(); if(!ex) return "";
+    const m=ex.match(/^[A-Z]+(?=[^A-Z]|$)/); const keep=m&&m[0].length<ex.length?m[0]:"";
+    return keep+[...ex.slice(keep.length)].map(c=>/[0-9]/.test(c)?"#":/[A-Z]/.test(c)?"@":c).join("");
+  }
+
+  // ---------- matching ----------
+  function results(){
+    return pats.map((pt,pi)=>{
+      const c=compile(pt.p);
+      const out={pi, p:pt.p.trim(), want:parseInt(pt.n,10)||0, list:[], near:[], c};
+      if(!c) return out;
+      const found=new Map();   // serial -> {pages:Set, check}
+      pages.forEach((pg,idx)=>{
+        const re=pg.ocr?c.loose:c.strict; re.lastIndex=0; let m;
+        const seen=new Set();
+        while((m=re.exec(pg.text))){
+          const {v,fixed}=pg.ocr?canon(m[1],c.slots):{v:canon(m[1],c.slots).v,fixed:false};
+          if(seen.has(v)) continue; seen.add(v);
+          const f=found.get(v)||{pages:new Set(),check:true};
+          f.pages.add(idx); f.check=f.check&&fixed; found.set(v,f);
+        }
+      });
+      byHand.filter(h=>h.pi===pi).forEach(h=>{ if(!found.has(h.v)) found.set(h.v,{pages:new Set(),check:false,hand:true}); });
+      out.list=[...found.entries()].filter(([v])=>!removed.has(pi+"|"+v)).map(([v,f])=>({v,pages:[...f.pages].sort((a,b)=>a-b),check:f.check&&!f.hand,hand:!!f.hand,dup:f.pages.size>1}));
+      out.list.sort((a,b)=>(a.pages[0]??1e9)-(b.pages[0]??1e9)||a.v.localeCompare(b.v,undefined,{numeric:true}));
+      // Close, but not matching: words that start like the pattern but are a character or two off.
+      if(c.prefix.length>=2){
+        const have=new Set(out.list.map(x=>x.v.replace(/[-–—_\s]/g,""))), near=new Map();
+        const wre=new RegExp("(?<![A-Za-z0-9])"+[...c.prefix].map(ch=>slotRe({k:"lit",c:ch},true)).join("")+"[A-Za-z0-9\\-–—_]{0,40}","g");
+        pages.forEach((pg,idx)=>{ wre.lastIndex=0; let m; while((m=wre.exec(pg.text))){
+          const w=m[0], flat=w.replace(/[-–—_]/g,"").toUpperCase(), plen=c.slots.filter(s=>!(s.k==="lit"&&/[-–—_\s]/.test(s.c))).length;
+          if(Math.abs(flat.length-plen)>2||have.has(flat)) continue;
+          if(out.list.some(x=>x.v.replace(/[-–—_\s]/g,"")===flat)) continue;
+          if(!near.has(w)) near.set(w,idx);
+        }});
+        out.near=[...near.entries()].slice(0,40).map(([w,idx])=>({w,idx}));
+      }
+      return out;
+    });
+  }
+  let lastRes=[];
+
+  // ---------- reading PDFs ----------
+  let ocrP=null;
+  function ocrSetup(){
+    if(!ocrP){
+      if(!window.Tesseract) return Promise.reject(new Error("ocr-missing"));
+      const lang=new URL("eng-ocr.wasm",document.baseURI).href;
+      const opts={workerPath:"https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",corePath:"https://unpkg.com/tesseract.js-core@5.1.1",langPath:lang+"?f=",gzip:false,cacheMethod:"none"};
+      ocrP=(async()=>{
+        const [a,b]=await Promise.all([Tesseract.createWorker("eng",1,opts),Tesseract.createWorker("eng",1,opts)]);
+        // a reads the page as blocks and columns; b reads it as scattered bits (labels, stickers, table cells).
+        await Promise.all([a.setParameters({tessedit_pageseg_mode:"3"}),b.setParameters({tessedit_pageseg_mode:"11"})]);
+        let qa=Promise.resolve(), qb=Promise.resolve();
+        const run=(w,q,img,out)=>{ const p=q.then(()=>w.recognize(img,{},out||{text:true})); return [p,p.catch(()=>{})]; };
+        return {
+          blocks:(img,out)=>{ const [p,n]=run(a,qa,img,out); qa=n; return p; },
+          bits:(img)=>{ const [p,n]=run(b,qb,img); qb=n; return p; }
+        };
+      })();
+      ocrP.catch(()=>{ocrP=null});
+    }
+    return ocrP;
+  }
+  const canvasOf=(w,h)=>{const c=document.createElement("canvas");c.width=w;c.height=h;return c};
+  function rotated(src,angle){
+    if(!angle) return src;
+    const side=angle%180!==0, c=canvasOf(side?src.height:src.width, side?src.width:src.height), ctx=c.getContext("2d");
+    ctx.translate(c.width/2,c.height/2); ctx.rotate(angle*Math.PI/180); ctx.drawImage(src,-src.width/2,-src.height/2);
+    return c;
+  }
+  function scaled(src,longSide){
+    const k=Math.min(1,longSide/Math.max(src.width,src.height)), c=canvasOf(Math.round(src.width*k),Math.round(src.height*k));
+    c.getContext("2d").drawImage(src,0,0,c.width,c.height); return c;
+  }
+  // Keep the brightest color channel: black print stays black, highlighter and colored stamps wash out.
+  function liftHighlights(c){
+    const ctx=c.getContext("2d"), img=ctx.getImageData(0,0,c.width,c.height), d=img.data;
+    for(let i=0;i<d.length;i+=4){ const v=Math.max(d[i],d[i+1],d[i+2]); d[i]=d[i+1]=d[i+2]=v; }
+    ctx.putImageData(img,0,0);
+  }
+  function wordScore(data){
+    let n=0;
+    (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>(l.words||[]).forEach(w=>{
+      const t=String(w.text||""); if(w.confidence>=70&&t.length>=3&&/[A-Za-z]/.test(t)) n++;
+    }))));
+    return n;
+  }
+  async function uprightAngle(ocr,c){
+    const sm=scaled(c,1100), score=async a=>wordScore((await ocr.blocks(rotated(sm,a),{blocks:true})).data);
+    const A=await score(0), B=await score(180);
+    if(A>=B) return (await score(270))>0.5*A?270:0;
+    return (await score(90))>0.5*B?90:180;
+  }
+  async function isScan(page){
+    try{
+      const ops=await page.getOperatorList(), O=pdfjsLib.OPS;
+      return ops.fnArray.some(f=>f===O.paintImageXObject||f===O.paintJpegXObject||f===O.paintInlineImageXObject||f===O.paintImageXObjectRepeat);
+    }catch(e){ return false }
+  }
+  async function readPage(f,pdf,i){
+    const page=await pdf.getPage(i+1);
+    const tc=await page.getTextContent();
+    // Rebuild the text line by line so a serial printed as one piece stays one word.
+    let text="", lastY=null;
+    tc.items.forEach(it=>{ const y=it.transform?Math.round(it.transform[5]):0; text+=(lastY!==null&&Math.abs(y-lastY)>2?"\n":" ")+it.str; lastY=y; });
+    const scan=(await isScan(page))||text.replace(/\s/g,"").length<40;
+    const vp0=page.getViewport({scale:1});
+    const vp=page.getViewport({scale:scan?Math.min(3,2600/Math.max(vp0.width,vp0.height)):Math.min(2,1400/Math.max(vp0.width,vp0.height))});
+    const c=canvasOf(Math.ceil(vp.width),Math.ceil(vp.height)), ctx=c.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    let img="", ocr=false, failed=false;
+    if(scan){
+      try{
+        const o=await ocrSetup();
+        const orig=canvasOf(c.width,c.height); orig.getContext("2d").drawImage(c,0,0);
+        const angle=await uprightAngle(o,orig);
+        img=scaled(rotated(orig,angle),1400).toDataURL("image/jpeg",0.8);
+        liftHighlights(c);
+        const up=rotated(c,angle);
+        const [r1,r2]=await Promise.all([o.blocks(up),o.bits(up)]);
+        text+="\n"+(r1.data.text||"")+"\n"+(r2.data.text||""); ocr=true;
+      }catch(e){ failed=true }
+    }
+    if(!img) img=scaled(c,1400).toDataURL("image/jpeg",0.8);
+    page.cleanup();
+    return {file:f.name, n:i+1, text, ocr, failed, img};
+  }
+  const MAX_PAGES=400;
+  async function readFile(f){
+    let pdf=null;
+    try{
+      pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.file.arrayBuffer())}).promise;
+      const n=Math.min(pdf.numPages,MAX_PAGES); f.total=n; f.done=0; f.status="reading"; f.pages=new Array(n);
+      render();
+      let next=0;
+      const lane=async()=>{ while(next<n){ const i=next++; f.pages[i]=await readPage(f,pdf,i); f.done++; rebuildPages(); render(); } };
+      await Promise.all([lane(),lane()]);
+      f.status="done"; f.tooLong=pdf.numPages>MAX_PAGES;
+      if(f.pages.some(p=>p.failed)) f.warn="Some scanned pages couldn't be read (the text reader didn't load). Check your connection and try again.";
+    }catch(e){ f.status="error"; f.error="Couldn't open this PDF"+(e&&e.name==="PasswordException"?" (password protected)":""); }
+    finally{ try{pdf&&pdf.destroy()}catch(e){} }
+    rebuildPages(); render();
+  }
+  function rebuildPages(){
+    pages=[]; files.forEach(f=>(f.pages||[]).forEach(p=>{ if(p) pages.push(Object.assign(p,{label:files.length>1?`${shortName(f.name)} p${p.n}`:`Page ${p.n}`})); }));
+  }
+  const shortName=n=>n.replace(/\.pdf$/i,"").slice(0,18);
+  let queue=Promise.resolve();
+  function addFiles(list){
+    const pdfs=[...list].filter(x=>/\.pdf$/i.test(x.name)||x.type==="application/pdf");
+    if(!pdfs.length){ toast("Pick a PDF file"); return; }
+    pdfs.forEach(file=>{ const f={name:file.name,file,status:"waiting",done:0,total:0}; files.push(f); queue=queue.then(()=>readFile(f)); });
+    render();
+  }
+
+  // ---------- drawing the page ----------
+  function patRows(){
+    $("#pats").innerHTML=pats.map((pt,i)=>`<div class="pat">
+      <label>Pattern${pats.length>1?" "+(i+1):""}<input type="text" data-p="${i}" value="${esc(pt.p)}" placeholder="SN####-#####" autocomplete="off" spellcheck="false"></label>
+      <label>Count<input type="number" min="0" data-n="${i}" value="${esc(pt.n)}" placeholder="—"></label>
+      <button class="btn x" data-del="${i}" title="Remove this pattern" aria-label="Remove pattern ${i+1}" ${pats.length<2?"disabled":""}>✕</button>
+    </div>`).join("");
+  }
+  function statusOf(r){
+    const n=r.list.length;
+    if(!r.want) return {cls:n?"ok":"warn",txt:`Found ${n}`};
+    if(n===r.want) return {cls:"ok",txt:`Found ${n} of ${r.want} ✓`};
+    if(n<r.want) return {cls:"warn",txt:`Found ${n} of ${r.want} · ${r.want-n} missing`};
+    return {cls:"bad",txt:`Found ${n} of ${r.want} · ${n-r.want} extra`};
+  }
+  function render(){
+    const busy=files.some(f=>f.status==="reading"||f.status==="waiting");
+    // files
+    $("#files").innerHTML=files.map(f=>{
+      const pct=f.total?Math.round(100*f.done/f.total):0;
+      const s=f.status==="error"?`<span style="color:var(--bad)">${esc(f.error)}</span>`:f.status==="done"?`<span>${f.total} page${f.total===1?"":"s"} ✓</span>`:f.status==="reading"?`<span>Reading ${f.done} of ${f.total}…</span>`:`<span>Waiting…</span>`;
+      return `<div style="display:grid;gap:4px"><div class="file"><b>${esc(f.name)}</b>${s}</div>${f.status==="reading"?`<div class="prog"><i style="width:${pct}%"></i></div>`:""}${f.warn?`<div class="hint" style="color:var(--warn)">${esc(f.warn)}</div>`:""}${f.tooLong?`<div class="hint">Only the first ${MAX_PAGES} pages were read.</div>`:""}</div>`;
+    }).join("");
+    // results
+    lastRes=results();
+    const active=lastRes.filter(r=>r.c);
+    const total=active.reduce((a,r)=>a+r.list.length,0), want=active.reduce((a,r)=>a+r.want,0);
+    const allWant=active.length&&active.every(r=>r.want);
+    const tileCls=!pages.length?"":!allWant?"":total===want?"ok":total<want?"warn":"bad";
+    $("#tiles").innerHTML=`<div class="tile"><b>${pages.length}</b><span>Pages read</span></div>
+      <div class="tile ${tileCls}"><b>${total}</b><span>Serials found</span></div>
+      <div class="tile"><b>${allWant?want:"—"}</b><span>Should be</span></div>`;
+    const st=$("#status");
+    if(busy){ const d=files.reduce((a,f)=>a+(f.done||0),0), t=files.reduce((a,f)=>a+(f.total||0),0); st.className="pill busy"; st.textContent=`Reading page ${Math.min(d+1,t||1)} of ${t||"…"}`; }
+    else if(!pages.length){ st.className="pill busy"; st.textContent=files.some(f=>f.status==="error")?"Couldn't read the PDF":"Waiting for a PDF"; }
+    else if(!active.length){ st.className="pill warn"; st.textContent="Type a pattern to look for"; }
+    else if(allWant){ const s=total===want?"ok":total<want?"warn":"bad"; st.className="pill "+s; st.textContent=total===want?`All ${want} found`:total<want?`${want-total} missing`:`${total-want} more than expected`; }
+    else { st.className="pill ok"; st.textContent=`${total} found`; }
+    $("#copyAll").disabled=!total; $("#dlx").disabled=!total;
+
+    $("#res").innerHTML=!pages.length?"":active.map(r=>{
+      const s=statusOf(r), checks=r.list.filter(x=>x.check).length, dups=r.list.filter(x=>x.dup).length;
+      const notes=[];
+      if(r.want&&r.list.length<r.want) notes.push(`<b>${r.want-r.list.length} not found.</b> Look at the orange pages below and at <b>Close, but not matching</b>, then add any it missed by hand.`);
+      if(r.want&&r.list.length>r.want) notes.push(`<b>${r.list.length-r.want} more than expected.</b> Look for <b>Doubled</b> or wrong reads and take them out with ✕.`);
+      if(checks) notes.push(`${checks} marked <b>Check</b>: a letter and number looked alike, so make sure it's right.`);
+      if(dups) notes.push(`${dups} <b>Doubled</b>: the same serial is on more than one page.`);
+      return `<section class="rc ${s.cls}">
+        <div class="rc-top"><h3>${esc(r.p)}</h3><span class="pill ${s.cls}">${esc(s.txt)}</span></div>
+        ${notes.length?`<div class="msg">${notes.join("<br>")}</div>`:""}
+        ${r.list.length?`<div class="grid">${r.list.map((x,i)=>`<div class="sn ${x.dup?"dup":x.check?"check":""}"><span class="i">${i+1}</span><span class="v">${esc(x.v)}</span><span class="meta">
+          ${x.hand?`<span class="tag hand">By hand</span>`:x.pages.map(p=>`<button class="tag pg" data-page="${p}" data-hl="${esc(x.v)}">${esc(pageShort(p))}</button>`).join("")}
+          ${x.dup?`<span class="tag dup">Doubled</span>`:x.check?`<span class="tag check">Check</span>`:""}
+          </span><button class="rm" data-rm="${r.pi}|${esc(x.v)}" title="Take out" aria-label="Take out ${esc(x.v)}">✕</button></div>`).join("")}</div>`:`<div class="empty">Nothing found yet that looks like <b style="font-family:var(--mono)">${esc(r.p)}</b>.${busy?" Still reading…":" Check the pattern, or click a page below to see what the serials look like."}</div>`}
+        ${r.near.length?`<div class="near"><h4>Close, but not matching · click to add</h4><div class="list">${r.near.map(n=>`<button data-near="${r.pi}" data-w="${esc(n.w)}" title="Found on ${esc(pageShort(n.idx))}">${esc(n.w)} <small>${esc(pageShort(n.idx))}</small></button>`).join("")}</div></div>`:""}
+        <div class="addh"><h4>Add by hand</h4><input type="text" data-addv="${r.pi}" placeholder="Type a serial" spellcheck="false"><button class="btn small" data-add="${r.pi}">Add</button>
+          ${[...removed].some(k=>k.startsWith(r.pi+"|"))?`<button class="btn small" data-undo="${r.pi}" style="margin-left:auto">Put back ${[...removed].filter(k=>k.startsWith(r.pi+"|")).length} taken out</button>`:""}</div>
+      </section>`;
+    }).join("");
+
+    // pages strip
+    $("#pagesCard").hidden=!pages.length;
+    if(pages.length){
+      const per=pages.map(()=>0); active.forEach(r=>r.list.forEach(x=>x.pages.forEach(p=>per[p]++)));
+      $("#pages").innerHTML=pages.map((p,i)=>`<button data-page="${i}" class="${per[i]?"":"zero"}" title="${esc(p.label)}">${esc(pageShort(i))}<small>${per[i]} found</small></button>`).join("");
+    }
+    compare();
+  }
+  const pageShort=i=>{ const p=pages[i]; if(!p) return "?"; return files.length>1?`${files.findIndex(f=>f.name===p.file)+1}·p${p.n}`:`p${p.n}`; };
+
+  function compare(){
+    const raw=$("#expectList").value, out=$("#cmpOut");
+    const want=[...new Set(raw.split(/[\s,;]+/).map(s=>s.trim().toUpperCase()).filter(Boolean))];
+    if(!want.length){ out.innerHTML=`<p class="hint">Paste a list to see which serials are missing from the scan and which were found but aren't on the list.</p>`; return; }
+    const flat=s=>s.replace(/[-–—_\s]/g,"").toUpperCase();
+    const found=new Map(); lastRes.forEach(r=>r.list.forEach(x=>found.set(flat(x.v),x.v)));
+    const W=new Set(want.map(flat));
+    const missing=want.filter(w=>!found.has(flat(w))), extra=[...found.entries()].filter(([k])=>!W.has(k)).map(e=>e[1]);
+    const ok=want.length-missing.length;
+    out.innerHTML=`<div class="box" style="border-color:var(--ok)"><b style="color:var(--ok)">${ok} of ${want.length} on your list were found</b></div>
+      <div class="box" style="border-color:${missing.length?"var(--warn)":"var(--line)"}"><b>${missing.length} on your list but not in the scan</b><div>${missing.map(esc).join(", ")||"None"}</div></div>
+      <div class="box" style="border-color:${extra.length?"var(--bad)":"var(--line)"}"><b>${extra.length} in the scan but not on your list</b><div>${extra.map(esc).join(", ")||"None"}</div></div>`;
+  }
+
+  // ---------- page viewer ----------
+  function openPage(i,hl){
+    const p=pages[i]; if(!p) return;
+    $("#vTitle").textContent=p.label+(files.length>1?"":` of ${pages.length}`);
+    const found=[]; lastRes.forEach(r=>r.list.forEach(x=>{ if(x.pages.includes(i)) found.push(x.v) }));
+    $("#vSub").textContent=hl?`Looking for ${hl}`:found.length?`Found here: ${found.join(", ")}`:"Nothing found on this page";
+    $("#vImg").src=p.img; $("#vImg").alt=p.label; $("#viewer").hidden=false; $("#vClose").focus();
+  }
+  $("#vClose").onclick=()=>{$("#viewer").hidden=true};
+  $("#viewer").addEventListener("click",e=>{ if(e.target.id==="viewer") $("#viewer").hidden=true; });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("#viewer").hidden=true; });
+
+  // ---------- events ----------
+  const drop=$("#drop"), picker=$("#picker");
+  picker.addEventListener("change",()=>{ addFiles(picker.files); picker.value=""; });
+  drop.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();picker.click()} });
+  ["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over")}));
+  ["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
+  drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+
+  let tmr=null;
+  $("#pats").addEventListener("input",e=>{
+    const t=e.target;
+    if(t.dataset.p!==undefined) pats[+t.dataset.p].p=t.value;
+    if(t.dataset.n!==undefined) pats[+t.dataset.n].n=t.value;
+    save(); clearTimeout(tmr); tmr=setTimeout(render,250);
+  });
+  $("#pats").addEventListener("click",e=>{
+    const d=e.target.closest("[data-del]"); if(!d) return;
+    const i=+d.dataset.del; pats.splice(i,1); if(!pats.length) pats=[{p:"",n:""}];
+    removed=new Set([...removed].filter(k=>!k.startsWith(i+"|")).map(k=>{const [a,...b]=k.split("|");return (+a>i?+a-1:a)+"|"+b.join("|")}));
+    byHand=byHand.filter(h=>h.pi!==i).map(h=>({pi:h.pi>i?h.pi-1:h.pi,v:h.v}));
+    save(); patRows(); render();
+  });
+  $("#addPat").onclick=()=>{ pats.push({p:"",n:""}); save(); patRows(); render(); $(`[data-p="${pats.length-1}"]`).focus(); };
+  function useExample(){
+    const ex=$("#example").value, p=patternFrom(ex); if(!p){ $("#example").focus(); toast("Type one serial first"); return; }
+    let i=pats.findIndex(x=>!x.p.trim()); if(i<0){ pats.push({p:"",n:""}); i=pats.length-1; }
+    pats[i].p=p; save(); patRows(); render(); $("#example").value="";
+    const n=$(`[data-n="${i}"]`); if(n&&!n.value){ n.focus(); toast(`Pattern ${p} · now type how many there should be`); }
+  }
+  $("#makePat").onclick=useExample;
+  $("#example").addEventListener("keydown",e=>{ if(e.key==="Enter") useExample(); });
+  $("#clearAll").onclick=()=>{ files=[]; pages=[]; removed.clear(); byHand=[]; queue=Promise.resolve(); render(); toast("Cleared the scan. Your patterns are kept."); };
+
+  document.addEventListener("click",e=>{
+    const t=e.target.closest("button"); if(!t) return;
+    if(t.dataset.page!==undefined){ openPage(+t.dataset.page,t.dataset.hl); return; }
+    if(t.dataset.rm!==undefined){ removed.add(t.dataset.rm); render(); return; }
+    if(t.dataset.undo!==undefined){ removed=new Set([...removed].filter(k=>!k.startsWith(t.dataset.undo+"|"))); render(); return; }
+    if(t.dataset.near!==undefined){ addByHand(+t.dataset.near,t.dataset.w,true); return; }
+    if(t.dataset.add!==undefined){ const inp=$(`[data-addv="${t.dataset.add}"]`); addByHand(+t.dataset.add,inp.value); return; }
+  });
+  document.addEventListener("keydown",e=>{ const t=e.target; if(e.key==="Enter"&&t.dataset&&t.dataset.addv!==undefined) addByHand(+t.dataset.addv,t.value); });
+  function addByHand(pi,v,sure){
+    v=String(v||"").trim().toUpperCase(); if(!v) return;
+    const c=compile(pats[pi].p);
+    if(c&&!sure){ c.strict.lastIndex=0; const m=c.strict.exec(v); if(!m||m[1].length!==v.length){ if(!confirm(`${v} doesn't match ${pats[pi].p}. Add it anyway?`)) return; } }
+    removed.delete(pi+"|"+v);
+    if(!byHand.some(h=>h.pi===pi&&h.v===v)) byHand.push({pi,v});
+    render(); toast(`Added ${v}`);
+  }
+  $("#expectList").addEventListener("input",()=>{ clearTimeout(tmr); tmr=setTimeout(compare,250); });
+
+  // ---------- copy / download ----------
+  function allRows(){ return lastRes.filter(r=>r.c).flatMap(r=>r.list.map(x=>({pattern:r.p,v:x.v,pages:x.hand?"By hand":x.pages.map(p=>pages[p].label).join(", "),note:[x.dup?"Doubled":"",x.check?"Check":""].filter(Boolean).join(", ")}))); }
+  $("#copyAll").onclick=async()=>{
+    const txt=allRows().map(r=>r.v).join("\n");
+    try{ await navigator.clipboard.writeText(txt); }
+    catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy")}catch(_){ } ta.remove(); }
+    toast(`Copied ${allRows().length} serials, one per line`);
+  };
+  $("#dlx").onclick=async()=>{
+    const rows=allRows(); if(!rows.length) return;
+    const d=new Date(), day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const summary=lastRes.filter(r=>r.c).map(r=>({Pattern:r.p,"Should be":r.want||"",Found:r.list.length,Result:statusOf(r).txt}));
+    const list=rows.map((r,i)=>({"#":i+1,Serial:r.v,Pattern:r.pattern,Page:r.pages,Note:r.note}));
+    let blob, name;
+    if(window.XLSX){
+      const wb=XLSX.utils.book_new();
+      const s1=XLSX.utils.json_to_sheet(list); s1["!cols"]=[{wch:5},{wch:24},{wch:20},{wch:24},{wch:16}];
+      const s2=XLSX.utils.json_to_sheet(summary); s2["!cols"]=[{wch:22},{wch:10},{wch:8},{wch:30}];
+      XLSX.utils.book_append_sheet(wb,s1,"Serials"); XLSX.utils.book_append_sheet(wb,s2,"Summary");
+      blob=new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}); name=`serials-${day}.xlsx`;
+    }else{
+      const q=v=>`"${String(v).replace(/"/g,'""')}"`;
+      blob=new Blob([["#,Serial,Pattern,Page,Note"].concat(list.map(r=>[r["#"],r.Serial,r.Pattern,r.Page,r.Note].map(q).join(","))).join("\r\n")],{type:"text/csv"}); name=`serials-${day}.csv`;
+    }
+    try{
+      if(downloads) await downloads.save({filename:name,data:blob});
+      else { const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+      toast(`Saved ${name}`);
+    }catch(e){ if(!e||e.code!=="declined") toast("Couldn't save the file"); }
+  };
+
+  load(); patRows(); render();
+})();
+</script>
+</body></html>
