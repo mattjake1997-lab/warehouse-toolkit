@@ -245,7 +245,6 @@ details.cmpd>.card{margin-top:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="https://unpkg.com/zxing-wasm@3.1.6/dist/iife/reader/index.js"></script>
 <script>
 (function(){
   try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
@@ -447,19 +446,53 @@ details.cmpd>.card{margin-top:12px}
   // ---------- barcodes ----------
   // Serial stickers and packing lists usually have a barcode under or over each number. Barcodes read exactly,
   // so they're used first; the printed text only fills in what has no barcode.
-  let zxPrep=false;
+  // The barcode reader runs in the background (a worker) so the page stays responsive. Its files sit next to
+  // this page (zxing-reader.js, zxing_reader.wasm); if those can't load it tries the public copy, then the
+  // browser's own barcode reader where there is one.
+  let zxP=null, zxErr="";
+  function workerReader(js,wasm){
+    const src=`try{importScripts(${JSON.stringify(js)})}catch(e){postMessage({boot:"script: "+e})}
+ZXingWASM.prepareZXingModule({overrides:{locateFile:(p,pre)=>p.endsWith(".wasm")?${JSON.stringify(wasm)}:pre+p}});
+onmessage=async e=>{const {id,img,opts}=e.data;try{const r=await ZXingWASM.readBarcodes(img,opts);postMessage({id,r:r.map(x=>({text:x.text,isValid:x.isValid,position:x.position}))})}catch(err){postMessage({id,err:String(err&&err.message||err)})}};
+postMessage({ready:1});`;
+    return new Promise((res,rej)=>{
+      let w; try{ w=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"}))); }catch(e){ return rej(new Error("worker: "+e.message)); }
+      const jobs=new Map(); let n=0;
+      const api={readBarcodes:(img,opts)=>new Promise((ok,bad)=>{ const id=++n; jobs.set(id,{ok,bad}); w.postMessage({id,img,opts}); })};
+      const t=setTimeout(()=>{ w.terminate(); rej(new Error("timed out loading")); },30000);
+      w.onerror=e=>{ clearTimeout(t); rej(new Error(e.message||"worker error")); };
+      w.onmessage=e=>{ const d=e.data;
+        if(d.boot){ clearTimeout(t); w.terminate(); rej(new Error(d.boot)); return; }
+        if(d.ready){
+          // A tiny test read makes sure the reader itself loaded, not just the script.
+          api.readBarcodes(new ImageData(8,8),{formats:["Code128"]}).then(()=>{ clearTimeout(t); res(api); },err=>{ clearTimeout(t); w.terminate(); rej(err); });
+          return; }
+        const j=jobs.get(d.id); if(!j) return; jobs.delete(d.id); d.err?j.bad(new Error(d.err)):j.ok(d.r);
+      };
+    });
+  }
+  function nativeReader(){
+    if(!("BarcodeDetector" in window)) return Promise.reject(new Error("no built-in reader"));
+    const det=new BarcodeDetector();
+    return Promise.resolve({readBarcodes:async(img)=>{ const bm=await createImageBitmap(img); const r=await det.detect(bm);
+      return r.map(x=>({text:x.rawValue,isValid:true,position:{topLeft:{x:x.boundingBox.x,y:x.boundingBox.y},bottomRight:{x:x.boundingBox.x+x.boundingBox.width,y:x.boundingBox.y+x.boundingBox.height}}})); }});
+  }
   function barcodeReader(){
-    if(!window.ZXingWASM) return null;
-    if(!zxPrep){ try{ ZXingWASM.prepareZXingModule({overrides:{locateFile:(p,pre)=>p.endsWith(".wasm")?"https://unpkg.com/zxing-wasm@3.1.6/dist/reader/zxing_reader.wasm":pre+p}}); }catch(e){} zxPrep=true; }
-    return ZXingWASM;
+    if(!zxP){
+      const here=f=>new URL(f,document.baseURI).href, cdn="https://unpkg.com/zxing-wasm@3.1.6/dist/";
+      zxP=workerReader(here("zxing-reader.js"),here("zxing_reader.wasm"))
+        .catch(e1=>workerReader(cdn+"iife/reader/index.js",cdn+"reader/zxing_reader.wasm").catch(e2=>{ zxErr=e1.message+" / "+e2.message; return nativeReader(); }))
+        .catch(e3=>{ zxErr+=(zxErr?" / ":"")+e3.message; console.warn("Barcode reader:",zxErr); return null; });
+    }
+    return zxP;
   }
   let zxQueue=Promise.resolve();
   // A page full of barcodes reads best in overlapping strips, turned pure black and white first
   // (the soft grey edges of a rendered scan throw the reader off). Strips run across the page, or down it
   // when the page was scanned sideways. One more pass over the whole page catches square (QR) codes.
   function readCodes(c){
-    const zx=barcodeReader(); if(!zx) return Promise.resolve(null);
     const p=zxQueue.then(async()=>{
+      const zx=await barcodeReader(); if(!zx) throw new Error("no reader");
       const W=c.width, H=c.height, bw=canvasOf(W,H), bx=bw.getContext("2d",{willReadFrequently:true});
       bx.drawImage(c,0,0);
       const img=bx.getImageData(0,0,W,H), d=img.data;
@@ -552,7 +585,7 @@ details.cmpd>.card{margin-top:12px}
       await Promise.all([lane(),lane()]);
       f.status="done"; f.tooLong=pdf.numPages>MAX_PAGES;
       f.warn=[f.pages.some(p=>p.failed)?"Some scanned pages couldn't be read (the text reader didn't load).":"", f.pages.some(p=>p.codeFailed)?"The barcode reader didn't load, so barcodes weren't read.":""].filter(Boolean).join(" ");
-      if(f.warn) f.warn+=" Check your connection and try again.";
+      if(f.warn) f.warn+=" Check your connection and try again."+(zxErr&&f.pages.some(p=>p.codeFailed)?` (${zxErr})`:"");
     }catch(e){ f.status="error"; f.error="Couldn't open this PDF"+(e&&e.name==="PasswordException"?" (password protected)":""); }
     finally{ try{pdf&&pdf.destroy()}catch(e){} }
     rebuildPages(); render();
