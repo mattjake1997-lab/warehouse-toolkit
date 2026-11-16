@@ -51,7 +51,8 @@ function warehouseLabel(sub) {
 //    LPN twice, so each LPN only counts once. It also teaches the tool each part's usual amount per skid.
 //  • the totals list: one row per part with the total on hand (no LPN). Skids are worked out from that total
 //    and the part's usual amount per skid (learned from a pallet list, or from the settings file).
-// Columns used: Sub, Item, Item Description, LPN, On-hand.
+// Columns used: Sub, Item, Item Description, LPN, On-hand. Skid sizes are kept per warehouse ("EAB|104115")
+// and per part ("104115"); the warehouse's own size is used first.
 // ---------------------------------------------------------------------------
 const PQ_KEY = "truckLoadBuilder.palletQty";
 function palletQtys() {
@@ -98,9 +99,13 @@ function parseAvailabilityWorkbook(workbook) {
       entry.byWarehouse[wh].push(lpn ?? entry.byWarehouse[wh].length + 1);
       const qty = Number(row["On-hand"]) || 0;
       entry.total[wh] = (entry.total[wh] || 0) + qty;
-      if (qty > 0) {
-        const p = perItem.get(itemKey) || { qty: 0, skids: 0 };
-        p.qty += qty; p.skids += 1; perItem.set(itemKey, p);
+      // Loose amounts (no LPN) aren't a known skid, so they don't teach a skid size.
+      if (qty > 0 && lpn !== null && lpn !== undefined && String(lpn).trim() !== "") {
+        // Each warehouse can pack a part differently, so sizes are kept per warehouse and for the part overall.
+        for (const k of [itemKey, `${wh}|${itemKey}`]) {
+          const p = perItem.get(k) || { qty: 0, skids: 0 };
+          p.qty += qty; p.skids += 1; perItem.set(k, p);
+        }
       }
     }
     // Remember each part's average amount per skid on this computer, for the next totals list.
@@ -111,7 +116,7 @@ function parseAvailabilityWorkbook(workbook) {
       localStorage.setItem(PQ_KEY, JSON.stringify({ ...old, ...learned }));
     } catch { /* not kept after reload */ }
     byItem.kind = "pallets";
-    byItem.learned = perItem.size;
+    byItem.learned = Array.from(perItem.keys()).filter((k) => !k.includes("|")).length;
   } else {
     const per = palletQtys();
     for (const row of rows) {
@@ -123,7 +128,7 @@ function parseAvailabilityWorkbook(workbook) {
     }
     for (const [itemKey, entry] of byItem) {
       for (const [wh, total] of Object.entries(entry.total)) {
-        const size = per[itemKey];
+        const size = per[`${wh}|${itemKey}`] || per[itemKey];
         const n = skidsFromTotal(total, size);
         entry.byWarehouse[wh] = Array.from({ length: n }, (_, i) => `est-${i + 1}`);
         entry.estimated[wh] = true;
