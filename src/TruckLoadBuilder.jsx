@@ -46,33 +46,96 @@ function warehouseLabel(sub) {
 }
 
 // ---------------------------------------------------------------------------
-// Excel parsing — offsite availability export (one row per skid/LPN)
-// Columns used: Sub, Item, Item Description, LPN. Everything else is ignored.
+// Excel parsing — offsite inventory export. Two kinds work:
+//  • the pallet list: one row per skid (LPN). Skids are counted exactly. The export sometimes lists the same
+//    LPN twice, so each LPN only counts once. It also teaches the tool each part's usual amount per skid.
+//  • the totals list: one row per part with the total on hand (no LPN). Skids are worked out from that total
+//    and the part's usual amount per skid (learned from a pallet list, or from the settings file).
+// Columns used: Sub, Item, Item Description, LPN, On-hand.
 // ---------------------------------------------------------------------------
+const PQ_KEY = "truckLoadBuilder.palletQty";
+function palletQtys() {
+  let learned = {};
+  try { learned = JSON.parse(localStorage.getItem(PQ_KEY) || "{}"); } catch { /* none saved */ }
+  return { ...(TK.palletQty || {}), ...learned };
+}
+// How many skids a total makes: total ÷ usual amount per skid, rounded up, but a sliver under 15% of a skid
+// past a whole number doesn't count as another skid (amounts per skid vary a little).
+function skidsFromTotal(total, perSkid) {
+  if (!(total > 0)) return 0;
+  if (!(perSkid > 0)) return 1;
+  return Math.max(1, Math.ceil(total / perSkid - 0.15));
+}
+
 function parseAvailabilityWorkbook(workbook) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null }).filter((r) => {
+    const it = r["Item"];
+    return it !== null && it !== undefined && it !== "" && String(it).trim() !== "Item";
+  });
+  const hasLpn = rows.some((r) => r["LPN"] !== null && r["LPN"] !== undefined && String(r["LPN"]).trim() !== "");
 
-  // itemNumber -> { description, byWarehouse: { WSI: [lpn, lpn...], ... } }
+  // itemNumber -> { description, byWarehouse: { WSI: [lpn, lpn...], ... }, estimated: {WSI:true}, total: {WSI: n} }
   const byItem = new Map();
+  const entryFor = (itemKey, description) => {
+    if (!byItem.has(itemKey)) byItem.set(itemKey, { description, byWarehouse: {}, estimated: {}, unknownSize: {}, total: {} });
+    return byItem.get(itemKey);
+  };
+  let duplicates = 0;
 
-  for (const row of rows) {
-    const item = row["Item"];
-    if (item === null || item === undefined || item === "") continue;
-    const itemKey = String(item).trim();
-    const sub = row["Sub"];
-    const wh = warehouseLabel(sub);
-    const description = row["Item Description"] || "";
-    const lpn = row["LPN"];
-
-    if (!byItem.has(itemKey)) {
-      byItem.set(itemKey, { description, byWarehouse: {} });
+  if (hasLpn) {
+    const seen = new Set();
+    const perItem = new Map(); // item -> { qty, skids } for learning the usual amount per skid
+    for (const row of rows) {
+      const itemKey = String(row["Item"]).trim();
+      const wh = warehouseLabel(row["Sub"]);
+      const lpn = row["LPN"];
+      const key = `${wh}|${itemKey}|${lpn ?? ""}`;
+      if (lpn !== null && lpn !== undefined && seen.has(key)) { duplicates++; continue; }
+      seen.add(key);
+      const entry = entryFor(itemKey, row["Item Description"] || "");
+      if (!entry.byWarehouse[wh]) entry.byWarehouse[wh] = [];
+      entry.byWarehouse[wh].push(lpn ?? entry.byWarehouse[wh].length + 1);
+      const qty = Number(row["On-hand"]) || 0;
+      entry.total[wh] = (entry.total[wh] || 0) + qty;
+      if (qty > 0) {
+        const p = perItem.get(itemKey) || { qty: 0, skids: 0 };
+        p.qty += qty; p.skids += 1; perItem.set(itemKey, p);
+      }
     }
-    const entry = byItem.get(itemKey);
-    if (!entry.byWarehouse[wh]) entry.byWarehouse[wh] = [];
-    entry.byWarehouse[wh].push(lpn ?? entry.byWarehouse[wh].length + 1);
+    // Remember each part's average amount per skid on this computer, for the next totals list.
+    const learned = {};
+    for (const [it, p] of perItem) learned[it] = Math.round((p.qty / p.skids) * 100) / 100;
+    try {
+      const old = JSON.parse(localStorage.getItem(PQ_KEY) || "{}");
+      localStorage.setItem(PQ_KEY, JSON.stringify({ ...old, ...learned }));
+    } catch { /* not kept after reload */ }
+    byItem.kind = "pallets";
+    byItem.learned = perItem.size;
+  } else {
+    const per = palletQtys();
+    for (const row of rows) {
+      const itemKey = String(row["Item"]).trim();
+      const wh = warehouseLabel(row["Sub"]);
+      const qty = Number(row["On-hand"]) || 0;
+      const entry = entryFor(itemKey, row["Item Description"] || "");
+      entry.total[wh] = (entry.total[wh] || 0) + qty;
+    }
+    for (const [itemKey, entry] of byItem) {
+      for (const [wh, total] of Object.entries(entry.total)) {
+        const size = per[itemKey];
+        const n = skidsFromTotal(total, size);
+        entry.byWarehouse[wh] = Array.from({ length: n }, (_, i) => `est-${i + 1}`);
+        entry.estimated[wh] = true;
+        if (!(size > 0)) entry.unknownSize[wh] = true;
+      }
+    }
+    byItem.kind = "totals";
   }
-
+  byItem.duplicates = duplicates;
+  byItem.unknownSize = Array.from(byItem.entries())
+    .filter(([, e]) => Object.keys(e.unknownSize).length)
+    .map(([it, e]) => ({ item: it, description: e.description, warehouses: Object.keys(e.unknownSize) }));
   return byItem;
 }
 
@@ -716,7 +779,13 @@ export default function TruckLoadBuilder() {
           accept=".xlsx,.xls"
           onFile={handleAvailabilityUpload}
           loading={loadingAvail}
-          status={availability ? `${availability.size} parts loaded` : "No file uploaded yet"}
+          status={
+            availability
+              ? availability.kind === "totals"
+                ? `${availability.size} parts · totals list, skids worked out`
+                : `${availability.size} parts · pallet list${availability.duplicates ? ` (${availability.duplicates} repeated rows skipped)` : ""}`
+              : "No file uploaded yet"
+          }
         />
         <UploadCard
           header="EVV DC Needs List"
@@ -730,6 +799,19 @@ export default function TruckLoadBuilder() {
       </div>
 
       {error && <div style={banner("red")}>{error}</div>}
+      {availability?.kind === "totals" && (
+        <div style={banner(availability.unknownSize.length ? "amber" : "green")}>
+          <b>Totals list:</b> skids are worked out from each part's total ÷ its usual amount per skid, so they're shown as <b>≈</b> estimates. Check the skid count on the floor before the truck leaves.
+          {availability.unknownSize.length > 0 && (
+            <>
+              {" "}
+              <b>{availability.unknownSize.length} part{availability.unknownSize.length === 1 ? "" : "s"} with no known skid size</b> count as 1 skid
+              {" "}({availability.unknownSize.slice(0, 8).map((u) => `${u.item} at ${u.warehouses.join("/")}`).join(", ")}
+              {availability.unknownSize.length > 8 ? ", …" : ""}). Upload a pallet list (one row per LPN) that has them and it learns their size.
+            </>
+          )}
+        </div>
+      )}
 
       {needsFlagged.length > 0 && (
         <div style={banner("amber")}>
@@ -880,7 +962,7 @@ export default function TruckLoadBuilder() {
                       +
                     </button>
                     <span style={{ color: li.manual && li.skids > stock ? "var(--amber-light)" : "var(--text-muted)", marginLeft: 8 }}>
-                      / {stock} avail{li.manual && li.skids > stock ? " in the file" : ""}
+                      / {availability?.get(li.item)?.estimated?.[active] ? "≈" : ""}{stock} avail{li.manual && li.skids > stock ? " in the file" : ""}
                     </span>
                   </td>
                   <td style={cellStyle}>{spotsForSkids(li.item, li.skids)}</td>

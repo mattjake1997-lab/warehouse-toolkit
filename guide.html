@@ -185,7 +185,7 @@ details[open]{border-left:3px solid var(--accent2);padding-left:12px}
      purpose:"Builds a truck load of off-site pallets to bring back to Main, filling toward 26 trailer spots from one warehouse, then makes the Bill of Lading.",
      files:[],
      steps:[
-      "Open the <b>Truck Load Builder</b> tab and drop the <b>Off Site Combined Inv</b> file in the left box and the <b>Needs List</b> in the right box.",
+      "Open the <b>Truck Load Builder</b> tab and drop the <b>Off Site Combined Inv</b> file in the left box and the <b>Needs List</b> in the right box. The left box takes either the <b>pallet list</b> (one row per LPN, exact skid counts) or the <b>totals list</b> (one row per part). With the totals list, skids are worked out from each part's usual amount per skid and show as <b>≈</b>; upload a pallet list once so it learns those amounts.",
       "It picks the warehouse to pull from (EAB, then WS2, then WSI) and shows a card for each with how many trailer spots it could fill. Click a card to switch warehouses.",
       "Click <b>Auto-fill this truck</b>. It adds the needed parts in order, highest EVV Move first, only up to the EVV Move amount, never padding extra skids.",
       "Check the lines. Change any skid count, remove a line, or add parts from <b>Still need</b>. Parts that double-stack take half a spot. Watch <b>Trailer spots</b>: 26 is full.",
