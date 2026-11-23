@@ -113,10 +113,10 @@ input:focus-visible,textarea:focus-visible,.btn:focus-visible,.drop:focus-visibl
 .pill.ok{color:var(--ok);background:var(--ok-bg)} .pill.warn{color:var(--warn);background:var(--warn-bg)} .pill.bad{color:var(--bad);background:var(--bad-bg)}
 .pill.busy{color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent)}
 .msg{padding:10px 16px;font-size:13.5px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--warn) 8%,var(--panel))}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;padding:14px 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;padding:14px 16px}
 .sn{display:grid;grid-template-columns:24px minmax(0,1fr) auto;grid-template-areas:"i v rm" "i meta meta";column-gap:8px;row-gap:3px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 6px 6px 8px;font-size:13px}
 .sn .i{grid-area:i;align-self:start;padding-top:2px;color:var(--muted);font:12px var(--mono);text-align:right}
-.sn .v{grid-area:v;font:600 14px var(--mono);overflow-wrap:anywhere}
+.sn .v{grid-area:v;font:600 13.5px var(--mono);overflow-wrap:anywhere;letter-spacing:-.01em}
 .sn .rm{grid-area:rm}
 .sn .meta{grid-area:meta;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:18px}
 .sn.check{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 8%,var(--panel))}
@@ -171,11 +171,11 @@ details.cmpd>.card{margin-top:12px}
 
   <div class="two">
     <section class="card">
-      <h2><span class="n">1</span>Upload the scan</h2>
+      <h2><span class="n">1</span>Upload the scan or picture</h2>
       <label class="drop" id="drop" tabindex="0">
-        <strong>Drop the PDF here</strong>
-        <span>or click to choose · scanned or digital · more than one is fine</span>
-        <input id="picker" type="file" accept="application/pdf,.pdf" multiple hidden>
+        <strong>Drop a PDF or a picture here</strong>
+        <span>or click to choose · scans, phone photos of labels, screenshots · or paste a picture with Ctrl+V</span>
+        <input id="picker" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden>
       </label>
       <div class="files" id="files"></div>
     </section>
@@ -224,7 +224,7 @@ details.cmpd>.card{margin-top:12px}
   <details class="howto">
     <summary>How to use this</summary>
     <ol>
-      <li><b>Scan the stack</b> into one PDF and drop it in box 1. Scanned pages take a few seconds each to read.</li>
+      <li><b>Scan the stack</b> into one PDF and drop it in box 1. Scanned pages take a few seconds each to read. A <b>phone photo of the labels</b> or a <b>screenshot</b> works too: drop it in, or press <b>Ctrl+V</b> on the page to paste it.</li>
       <li><b>Type how the serials start</b> in <b>Starts with</b>: the first few characters every one of them shares, like <code>5426</code>.</li>
       <li><b>Type how many there should be</b> in <b>Count</b>.</li>
       <li><b>Read the result.</b> Green: found exactly that many. Orange: some are missing; red: extras. Serials read from a barcode are exact. One read only from the printed text gets an orange <b>Check</b> tag, so look at it. <b>Odd length</b> means it's longer or shorter than the rest. <b>Doubled</b> means the same serial is on more than one page.</li>
@@ -330,7 +330,12 @@ details.cmpd>.card{margin-top:12px}
     }else{
       const head=pg.ocr?[...P].map(looseCh).join(""):[...P].map(ch=>/[A-Za-z]/.test(ch)?`[${ch.toUpperCase()}${ch.toLowerCase()}]`:reEsc(ch)).join("");
       const re=new RegExp("(?<![A-Za-z0-9])"+head+(pg.ocr?"[A-Za-z0-9|]*":"[A-Za-z0-9]*")+"(?:-[A-Za-z0-9]+)*","g"); let m;
-      while((m=re.exec(pg.text))){
+      // Read text sometimes breaks a long number with a stray space or mark ("0018435100827 1464482").
+      // On read pages each line is also tried with those gaps closed up.
+      const texts=[pg.text];
+      if(pg.ocr) texts.push(pg.text.split("\n").map(l=>l.replace(/(?<=[0-9OoIl|SB])[\s;:,.'"’`‘“”]{1,2}(?=[0-9OoIl|SB])/g,"")).join("\n"));
+      for(const T of texts){ re.lastIndex=0;
+      while((m=re.exec(T))){
         let fixed=false;
         // The start is what was typed. On scanned pages the rest is cleaned up: in a number that's mostly digits, look-alike letters become digits.
         let tail=m[0].replace(new RegExp("^"+head),"");
@@ -338,9 +343,28 @@ details.cmpd>.card{margin-top:12px}
           if(tail.length&&digits/tail.length>=0.6){ const t2=tail.replace(/[^0-9-]/g,ch=>TO_DIGIT[ch]||ch); if(t2!==tail){fixed=true; tail=t2;} } }
         const startOk=m[0].slice(0,m[0].length-tail.length).toUpperCase()===P||!pg.ocr;
         add(P+tail,fixed||!startOk,false);
-      }
+      }}
     }
-    return [...out.values()];
+    // A piece of a longer number found on the same page isn't a serial of its own.
+    const all=[...out.values()];
+    return all.filter(x=>x.code||!all.some(y=>y!==x&&y.v.length>x.v.length&&y.v.startsWith(x.v)&&(checkOf(y.v)!==false||checkOf(x.v)===false)));
+  }
+  // Check digit (GS1, used on shipping labels and many barcodes): the last digit is worked out from all the others,
+  // so a number with one misread digit fails. Shipping-label numbers are 18 digits, often shown with "00" in front.
+  function gs1ok(d){ const b=d.slice(0,-1); let t=0; for(let i=0;i<b.length;i++) t+=(+b[b.length-1-i])*(i%2===0?3:1); return (10-t%10)%10===+d.slice(-1); }
+  function checkOf(v){
+    if(!/^\d+$/.test(v)) return null;
+    if(v.length===20&&v.startsWith("00")) return gs1ok(v.slice(2));
+    if([8,12,13,14,17,18].includes(v.length)) return gs1ok(v);
+    return null;
+  }
+  // Digits the text reader mixes up. When a number fails its check digit and exactly one swap of a look-alike
+  // digit makes it pass (and isn't already in the list), that's offered as the likely right number.
+  const LOOKALIKE={"0":"869","1":"74","2":"7","3":"85","4":"1","5":"63","6":"850","7":"12","8":"0369","9":"80"};
+  function fixFor(v,list){
+    const have=new Set(list.map(x=>x.v)), hits=new Set();
+    for(let i=0;i<v.length;i++) for(const d of (LOOKALIKE[v[i]]||"")){ const w=v.slice(0,i)+d+v.slice(i+1); if(checkOf(w)===true&&!have.has(w)) hits.add(w); }
+    return hits.size===1?[...hits][0]:null;
   }
   function results(){
     return pats.map((pt,pi)=>{
@@ -352,7 +376,7 @@ details.cmpd>.card{margin-top:12px}
       pages.forEach((pg,idx)=>{
         // Barcodes first (exact), then printed text by how often it was read. A printed read one character off
         // from something already kept on this page is the same serial misread, so it's dropped.
-        const cand=candidates(pg,P,c).sort((a,b)=>(b.code-a.code)||(b.n-a.n));
+        const cand=candidates(pg,P,c).map(x=>Object.assign(x,{ck:checkOf(x.v)})).sort((a,b)=>(b.code-a.code)||((b.ck===true)-(a.ck===true))||(b.n-a.n));
         const kept=[];
         cand.forEach(x=>{
           if(!x.code&&kept.some(k=>ham1(k.v,x.v))) return;
@@ -367,8 +391,12 @@ details.cmpd>.card{margin-top:12px}
       const lens=new Map(); out.list.forEach(x=>lens.set(x.v.length,(lens.get(x.v.length)||0)+1));
       const common=[...lens.entries()].sort((a,b)=>b[1]-a[1])[0];
       if(common&&out.list.length>=3) out.list.forEach(x=>{ x.odd=!x.hand&&x.v.length!==common[0]; });
+      // Use the check digit when these numbers have one: shipping-label numbers always do; others when nearly all pass.
+      const cks=out.list.map(x=>checkOf(x.v)), known=cks.filter(v=>v!==null), pass=known.filter(Boolean).length;
+      out.usesCheck=known.length>0&&(out.list.every(x=>/^00\d{18}$/.test(x.v)||x.hand)||(known.length>=3&&pass/known.length>=0.9));
+      if(out.usesCheck) out.list.forEach((x,i)=>{ x.ck=cks[i]; x.badCk=cks[i]===false; if(x.ck===true) x.check=false; if(x.badCk) x.fix=fixFor(x.v,out.list); });
       // Anything to look at (doubled, check, odd length) goes first, then the rest in page order.
-      const flag=x=>(x.dup||x.check||x.odd)?0:1;
+      const flag=x=>(x.badCk||x.dup||x.check||x.odd)?0:1;
       out.list.sort((a,b)=>flag(a)-flag(b)||(a.pages[0]??1e9)-(b.pages[0]??1e9)||a.v.localeCompare(b.v,undefined,{numeric:true}));
       if(c&&c.prefix.length>=2){
         const have=new Set(out.list.map(x=>x.v.replace(/[-–—_\s]/g,""))), near=new Map();
@@ -427,14 +455,17 @@ details.cmpd>.card{margin-top:12px}
   function wordScore(data){
     let n=0;
     (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>(l.words||[]).forEach(w=>{
-      const t=String(w.text||""); if(w.confidence>=70&&t.length>=3&&/[A-Za-z]/.test(t)) n++;
+      // Words and numbers both count: a page of serials is mostly numbers. Upside-down digits read as junk
+      // letters at lower confidence, so the confidence bar is what tells the two apart.
+      const t=String(w.text||""); if(w.confidence>=80&&t.length>=3&&/^[A-Za-z0-9\-\/.,:#]+$/.test(t)&&(/^[A-Za-z]+$/.test(t)||/^\d[\d\-\/.,:]*$/.test(t)||/[a-z]/.test(t))) n++;
     }))));
     return n;
   }
   async function uprightAngle(ocr,c){
     const sm=scaled(c,1100), score=async a=>wordScore((await ocr.blocks(rotated(sm,a),{blocks:true})).data);
     const A=await score(0), B=await score(180);
-    if(A>=B) return (await score(270))>0.5*A?270:0;
+    // Most pages and pictures are the right way up, so turning one needs a clearly better read.
+    if(A>=B*0.8||B<3) return (await score(270))>Math.max(0.5*A,2)&&A<3?270:0;
     return (await score(90))>0.5*B?90:180;
   }
   async function isScan(page){
@@ -486,11 +517,13 @@ postMessage({ready:1});`;
     }
     return zxP;
   }
+  // Shipping labels (GS1-128) read as "(00)184351…" with the parts in brackets; the number itself has none.
+  function cleanCode(t){ t=String(t).trim().replace(/^\]C1/,"").replace(/\x1d/g,""); return /^\(\d{2,4}\)/.test(t)?t.replace(/[()\s]/g,""):t; }
   let zxQueue=Promise.resolve();
   // A page full of barcodes reads best in overlapping strips, turned pure black and white first
   // (the soft grey edges of a rendered scan throw the reader off). Strips run across the page, or down it
   // when the page was scanned sideways. One more pass over the whole page catches square (QR) codes.
-  function readCodes(c){
+  function readCodes(c,photo){
     const p=zxQueue.then(async()=>{
       const zx=await barcodeReader(); if(!zx) throw new Error("no reader");
       const W=c.width, H=c.height, bw=canvasOf(W,H), bx=bw.getContext("2d",{willReadFrequently:true});
@@ -501,7 +534,7 @@ postMessage({ready:1});`;
       // Each read keeps where on the page it was. Now and then a strip misreads a barcode as a different number;
       // when two numbers sit in the same spot, the one read more often wins.
       const reads=new Map();
-      const add=(r,dx,dy)=>r.forEach(x=>{ if(!x.isValid||!x.text) return; const v=x.text.trim(), q=x.position||{};
+      const add=(r,dx,dy)=>r.forEach(x=>{ if(!x.isValid||!x.text) return; const v=cleanCode(x.text), q=x.position||{};
         const pts=[q.topLeft,q.topRight,q.bottomLeft,q.bottomRight].filter(Boolean);
         const box=pts.length?{x0:Math.min(...pts.map(p=>p.x))+dx,x1:Math.max(...pts.map(p=>p.x))+dx,y0:Math.min(...pts.map(p=>p.y))+dy,y1:Math.max(...pts.map(p=>p.y))+dy}:null;
         const o=reads.get(v)||{n:0,boxes:[]}; o.n++; if(box) o.boxes.push(box); reads.set(v,o); });
@@ -514,6 +547,7 @@ postMessage({ready:1});`;
       };
       await strips(true);
       if(reads.size<3) await strips(false);
+      if(photo) add(await zx.readBarcodes(c.getContext("2d").getImageData(0,0,W,H),{formats:["Linear-Codes"],maxNumberOfSymbols:200,tryHarder:true}),0,0);
       add(await zx.readBarcodes(img,{formats:["QRCode","DataMatrix","PDF417","Aztec","MicroQRCode"],maxNumberOfSymbols:100,tryHarder:true}),0,0);
       // Same spot: mostly the same left-to-right span and less than about a fifth of an inch apart up and down.
       const near=Math.max(W,H)/11/5;
@@ -539,6 +573,49 @@ postMessage({ready:1});`;
     zxQueue=p.catch(()=>{});
     return p.catch(()=>null);
   }
+  // Screenshots often have rows picked out in a colour (white text on a blue selection). Coloured pixels become
+  // background (white); light pixels sitting among coloured ones are that white text, so they become black.
+  // Everything else keeps its grey. The result is dark text on a light page everywhere, which the reader needs.
+  function evenOut(c){
+    const ctx=c.getContext("2d"), W=c.width, H=c.height, img=ctx.getImageData(0,0,W,H), d=img.data, N=W*H;
+    const sat=new Uint8Array(N), lum=new Float32Array(N);
+    for(let p=0,i=0;p<N;p++,i+=4){ const r=d[i],g=d[i+1],b=d[i+2], mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+      lum[p]=0.3*r+0.59*g+0.11*b; sat[p]=(mx-mn>60&&mx>60)?1:0; }
+    // How much colour is around each pixel (a box about as tall as a line of text).
+    const R=Math.max(4,Math.round(Math.min(W,H)/60)), I=new Uint32Array((W+1)*(H+1));
+    for(let y=0;y<H;y++){ let row=0; for(let x=0;x<W;x++){ row+=sat[y*W+x]; I[(y+1)*(W+1)+x+1]=I[y*(W+1)+x+1]+row; } }
+    const box=(x,y)=>{ const x0=Math.max(0,x-R),y0=Math.max(0,y-R),x1=Math.min(W,x+R+1),y1=Math.min(H,y+R+1);
+      return (I[y1*(W+1)+x1]-I[y0*(W+1)+x1]-I[y1*(W+1)+x0]+I[y0*(W+1)+x0])/((x1-x0)*(y1-y0)); };
+    for(let y=0,p=0;y<H;y++) for(let x=0;x<W;x++,p++){
+      let v=lum[p];
+      if(sat[p]) v=255;
+      else if(v>150&&box(x,y)>0.35) v=255-v;
+      const i=p*4; d[i]=d[i+1]=d[i+2]=v;
+    }
+    ctx.putImageData(img,0,0);
+  }
+  // Reads one page or picture already drawn on a canvas: barcodes first, then the printed text.
+  async function readCanvas(c,text,scan,photo){
+    const codes=await readCodes(c,photo);
+    let img="", ocr=false, failed=false, skippedText=false;
+    const codeFailed=codes===null;
+    if(scan){
+      if((codes||[]).length>=3&&!$("#alsoText").checked) skippedText=true;
+      else try{
+        const o=await ocrSetup();
+        const sm=scaled(c,photo?3200:2600);
+        const orig=canvasOf(sm.width,sm.height); orig.getContext("2d").drawImage(sm,0,0);
+        const angle=await uprightAngle(o,orig);
+        img=scaled(rotated(orig,angle),1400).toDataURL("image/jpeg",0.8);
+        if(photo) evenOut(sm); else liftHighlights(sm);
+        const up=rotated(sm,angle);
+        const [r1,r2]=await Promise.all([o.blocks(up),o.bits(up)]);
+        text+="\n"+(r1.data.text||"")+"\n"+(r2.data.text||""); ocr=true;
+      }catch(e){ failed=true }
+    }
+    if(!img) img=scaled(c,1400).toDataURL("image/jpeg",0.8);
+    return {text, codes:codes||[], ocr, failed, codeFailed, skippedText, img};
+  }
   async function readPage(f,pdf,i){
     const page=await pdf.getPage(i+1);
     const tc=await page.getTextContent();
@@ -552,29 +629,32 @@ postMessage({ready:1});`;
     const c=canvasOf(Math.ceil(vp.width),Math.ceil(vp.height)), ctx=c.getContext("2d");
     ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
     await page.render({canvasContext:ctx,viewport:vp}).promise;
-    const codes=await readCodes(c);
-    let img="", ocr=false, failed=false, skippedText=false;
-    const codeFailed=codes===null;
-    if(scan){
-      if((codes||[]).length>=3&&!$("#alsoText").checked) skippedText=true;
-      else try{
-        const o=await ocrSetup();
-        const sm=scaled(c,2600);
-        const orig=canvasOf(sm.width,sm.height); orig.getContext("2d").drawImage(sm,0,0);
-        const angle=await uprightAngle(o,orig);
-        img=scaled(rotated(orig,angle),1400).toDataURL("image/jpeg",0.8);
-        liftHighlights(sm);
-        const up=rotated(sm,angle);
-        const [r1,r2]=await Promise.all([o.blocks(up),o.bits(up)]);
-        text+="\n"+(r1.data.text||"")+"\n"+(r2.data.text||""); ocr=true;
-      }catch(e){ failed=true }
-    }
-    if(!img) img=scaled(c,1400).toDataURL("image/jpeg",0.8);
+    const r=await readCanvas(c,text,scan,false);
     page.cleanup();
-    return {file:f.name, n:i+1, text, codes:codes||[], ocr, failed, codeFailed, skippedText, img};
+    return {file:f.name, n:i+1, ...r};
+  }
+  // A picture (phone photo, screenshot): small ones are enlarged so small print is big enough to read,
+  // big phone photos are brought down to a size the readers handle quickly.
+  async function readPicture(f){
+    const bmp=await createImageBitmap(f.file);
+    const long=Math.max(bmp.width,bmp.height), k=long<1600?Math.min(3,2400/long):Math.min(1,4000/long);
+    const c=canvasOf(Math.round(bmp.width*k),Math.round(bmp.height*k)), ctx=c.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+    ctx.imageSmoothingQuality="high"; ctx.drawImage(bmp,0,0,c.width,c.height);
+    const r=await readCanvas(c,"",true,true);
+    return {file:f.name, n:1, picture:true, ...r};
   }
   const MAX_PAGES=400;
   async function readFile(f){
+    if(f.picture){
+      f.total=1; f.done=0; f.status="reading"; f.pages=new Array(1); render();
+      try{ f.pages[0]=await readPicture(f); f.done=1; f.status="done";
+        const p=f.pages[0];
+        f.warn=[p.failed?"The text reader didn't load.":"",p.codeFailed?"The barcode reader didn't load, so barcodes weren't read.":""].filter(Boolean).join(" ");
+        if(f.warn) f.warn+=" Check your connection and try again."+(zxErr&&p.codeFailed?` (${zxErr})`:"");
+      }catch(e){ f.status="error"; f.error="Couldn't open this picture"+(/heic|heif/i.test(f.name)?" (iPhone HEIC photos: set the camera to Most Compatible, or send it as a JPG)":""); }
+      rebuildPages(); render(); return;
+    }
     let pdf=null;
     try{
       pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.file.arrayBuffer())}).promise;
@@ -591,14 +671,15 @@ postMessage({ready:1});`;
     rebuildPages(); render();
   }
   function rebuildPages(){
-    pages=[]; files.forEach(f=>(f.pages||[]).forEach(p=>{ if(p) pages.push(Object.assign(p,{label:files.length>1?`${shortName(f.name)} p${p.n}`:`Page ${p.n}`})); }));
+    pages=[]; files.forEach(f=>(f.pages||[]).forEach(p=>{ if(p) pages.push(Object.assign(p,{label:p.picture?shortName(f.name):files.length>1?`${shortName(f.name)} p${p.n}`:`Page ${p.n}`})); }));
   }
-  const shortName=n=>n.replace(/\.pdf$/i,"").slice(0,18);
+  const shortName=n=>n.replace(/\.(pdf|png|jpe?g|webp|gif|bmp)$/i,"").slice(0,18);
   let queue=Promise.resolve();
   function addFiles(list){
-    const pdfs=[...list].filter(x=>/\.pdf$/i.test(x.name)||x.type==="application/pdf");
-    if(!pdfs.length){ toast("Pick a PDF file"); return; }
-    pdfs.forEach(file=>{ const f={name:file.name,file,status:"waiting",done:0,total:0}; files.push(f); queue=queue.then(()=>readFile(f)); });
+    const ok=[...list].filter(x=>/\.pdf$/i.test(x.name)||x.type==="application/pdf"||/^image\//.test(x.type)||/\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(x.name));
+    if(!ok.length){ toast("Pick a PDF or a picture"); return; }
+    ok.forEach(file=>{ const picture=/^image\//.test(file.type)||/\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(file.name);
+      const f={name:file.name||"Pasted picture",file,picture,status:"waiting",done:0,total:0}; files.push(f); queue=queue.then(()=>readFile(f)); });
     render();
   }
 
@@ -645,18 +726,21 @@ postMessage({ready:1});`;
     $("#res").innerHTML=!pages.length?"":active.map(r=>{
       const s=statusOf(r), checks=r.list.filter(x=>x.check).length, dups=r.list.filter(x=>x.dup).length;
       const notes=[];
-      if(r.want&&r.list.length<r.want) notes.push(`<b>${r.want-r.list.length} not found.</b> Look at the orange pages below and at <b>Close, but not matching</b>, then add any it missed by hand.`);
+      if(r.want&&r.list.length<r.want) notes.push(`<b>${r.want-r.list.length} not found.</b> Look at the orange pages below${r.near.length?" and at <b>Close, but not matching</b>":""}, then add any it missed by hand.`);
       if(r.want&&r.list.length>r.want) notes.push(`<b>${r.list.length-r.want} more than expected.</b> Look for <b>Doubled</b> or wrong reads and take them out with ✕.`);
       if(checks) notes.push(`${checks} marked <b>Check</b>: read from the printed text, not a barcode, so make sure it's right.`);
       const odds=r.list.filter(x=>x.odd).length;
+      const bads=r.list.filter(x=>x.badCk).length;
+      if(bads) notes.push(`<b>${bads} with a wrong check digit:</b> at least one digit was misread. Where it shows <b>Use …?</b>, that's the likely right number (one look-alike digit swapped): check it against the page and click it. Otherwise take it out with ✕ and add the right number by hand.`);
+      else if(r.usesCheck&&r.list.length) notes.push(`<span style="color:var(--ok)">✓ Every number passed its check digit.</span>`);
       if(odds) notes.push(`${odds} marked <b>Odd length</b>: longer or shorter than the others, so it may be a different number that starts the same way.`);
       if(dups) notes.push(`${dups} <b>Doubled</b>: the same serial is on more than one page.`);
       return `<section class="rc ${s.cls}">
         <div class="rc-top"><h3>${esc(r.p)}</h3><span class="pill ${s.cls}">${esc(s.txt)}</span></div>
         ${notes.length?`<div class="msg">${notes.join("<br>")}</div>`:""}
-        ${r.list.length?`<div class="grid">${r.list.map((x,i)=>`<div class="sn ${x.dup?"dup":x.check||x.odd?"check":""}"><span class="i">${i+1}</span><span class="v">${esc(x.v)}</span><span class="meta">
+        ${r.list.length?`<div class="grid">${r.list.map((x,i)=>`<div class="sn ${x.dup||x.badCk?"dup":x.check||x.odd?"check":""}"><span class="i">${i+1}</span><span class="v">${esc(x.v)}</span><span class="meta">
           ${x.hand?`<span class="tag hand">By hand</span>`:x.pages.map(p=>`<button class="tag pg" data-page="${p}" data-hl="${esc(x.v)}">${esc(pageShort(p))}</button>`).join("")}
-          ${x.dup?`<span class="tag dup">Doubled</span>`:""}${x.check?`<span class="tag check">Check</span>`:""}${x.odd?`<span class="tag check">Odd length</span>`:""}
+          ${x.dup?`<span class="tag dup">Doubled</span>`:""}${x.check?`<span class="tag check">Check</span>`:""}${x.odd?`<span class="tag check">Odd length</span>`:""}${x.badCk?`<span class="tag dup">Check digit wrong</span>`:""}${x.fix?`<button class="tag hand" style="border:0;cursor:pointer" data-fix="${r.pi}|${esc(x.v)}|${esc(x.fix)}" title="Swap in the likely right number">Use ${esc(x.fix.slice(-6))}?</button>`:""}
           </span><button class="rm" data-rm="${r.pi}|${esc(x.v)}" title="Take out" aria-label="Take out ${esc(x.v)}">✕</button></div>`).join("")}</div>`:`<div class="empty">Nothing found yet that starts with <b style="font-family:var(--mono)">${esc(r.p)}</b>.${busy?" Still reading…":" Check the start, or click a page below to see what the serials look like."}</div>`}
         ${r.near.length?`<div class="near"><h4>Close, but not matching · click to add</h4><div class="list">${r.near.map(n=>`<button data-near="${r.pi}" data-w="${esc(n.w)}" title="Found on ${esc(pageShort(n.idx))}">${esc(n.w)} <small>${esc(pageShort(n.idx))}</small></button>`).join("")}</div></div>`:""}
         <div class="addh"><h4>Add by hand</h4><input type="text" data-addv="${r.pi}" placeholder="Type a serial" spellcheck="false"><button class="btn small" data-add="${r.pi}">Add</button>
@@ -707,6 +791,15 @@ postMessage({ready:1});`;
   ["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over")}));
   ["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
   drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+  // Ctrl+V a screenshot or photo anywhere on the page (not while typing in a box).
+  let pasted=0;
+  document.addEventListener("paste",e=>{
+    if(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    const pics=[...(e.clipboardData?e.clipboardData.items:[])].filter(i=>i.kind==="file"&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);
+    if(!pics.length) return;
+    e.preventDefault();
+    addFiles(pics.map(p=>new File([p],`Pasted picture ${++pasted}.${(p.type.split("/")[1]||"png").replace("jpeg","jpg")}`,{type:p.type})));
+  });
 
   let tmr=null;
   $("#pats").addEventListener("input",e=>{
@@ -733,6 +826,7 @@ postMessage({ready:1});`;
     const t=e.target.closest("button"); if(!t) return;
     if(t.dataset.page!==undefined){ openPage(+t.dataset.page,t.dataset.hl); return; }
     if(t.dataset.rm!==undefined){ removed.add(t.dataset.rm); render(); return; }
+    if(t.dataset.fix!==undefined){ const [pi,bad,good]=t.dataset.fix.split("|"); removed.add(pi+"|"+bad); addByHand(+pi,good,true); return; }
     if(t.dataset.undo!==undefined){ removed=new Set([...removed].filter(k=>!k.startsWith(t.dataset.undo+"|"))); render(); return; }
     if(t.dataset.near!==undefined){ addByHand(+t.dataset.near,t.dataset.w,true); return; }
     if(t.dataset.add!==undefined){ const inp=$(`[data-addv="${t.dataset.add}"]`); addByHand(+t.dataset.add,inp.value); return; }
@@ -749,7 +843,7 @@ postMessage({ready:1});`;
   $("#expectList").addEventListener("input",()=>{ clearTimeout(tmr); tmr=setTimeout(compare,250); });
 
   // ---------- copy / download ----------
-  function allRows(){ return lastRes.filter(r=>r.c).flatMap(r=>r.list.map(x=>({pattern:r.p,v:x.v,pages:x.hand?"By hand":x.pages.map(p=>pages[p].label).join(", "),read:x.hand?"By hand":x.code?"Barcode":"Printed text",note:[x.dup?"Doubled":"",x.check?"Check":"",x.odd?"Odd length":""].filter(Boolean).join(", ")}))); }
+  function allRows(){ return lastRes.filter(r=>r.c).flatMap(r=>r.list.map(x=>({pattern:r.p,v:x.v,pages:x.hand?"By hand":x.pages.map(p=>pages[p].label).join(", "),read:x.hand?"By hand":x.code?"Barcode":"Printed text",ck:x.ck===true?"OK":x.ck===false?"Wrong":"",note:[x.dup?"Doubled":"",x.check?"Check":"",x.odd?"Odd length":""].filter(Boolean).join(", ")}))); }
   $("#copyAll").onclick=async()=>{
     const txt=allRows().map(r=>r.v).join("\n");
     try{ await navigator.clipboard.writeText(txt); }
@@ -760,17 +854,19 @@ postMessage({ready:1});`;
     const rows=allRows(); if(!rows.length) return;
     const d=new Date(), day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     const summary=lastRes.filter(r=>r.c).map(r=>({"Starts with":r.p,"Should be":r.want||"",Found:r.list.length,Result:statusOf(r).txt}));
-    const list=rows.map((r,i)=>({"#":i+1,Serial:r.v,"Starts with":r.pattern,Page:r.pages,"Read from":r.read,Note:r.note}));
+    const list=rows.map((r,i)=>({"#":i+1,Serial:r.v,"Starts with":r.pattern,Page:r.pages,"Read from":r.read,"Check digit":r.ck,Note:r.note}));
     let blob, name;
     if(window.XLSX){
       const wb=XLSX.utils.book_new();
-      const s1=XLSX.utils.json_to_sheet(list); s1["!cols"]=[{wch:5},{wch:24},{wch:12},{wch:20},{wch:13},{wch:18}];
+      const s1=XLSX.utils.json_to_sheet(list); s1["!cols"]=[{wch:5},{wch:24},{wch:12},{wch:20},{wch:13},{wch:11},{wch:18}];
+      // Serials stay text, so Excel keeps leading zeros and doesn't turn long numbers into 1.84E+19.
+      Object.keys(s1).forEach(k=>{ if(/^B\d+$/.test(k)&&k!=="B1"){ s1[k].t="s"; s1[k].z="@"; } });
       const s2=XLSX.utils.json_to_sheet(summary); s2["!cols"]=[{wch:22},{wch:10},{wch:8},{wch:30}];
       XLSX.utils.book_append_sheet(wb,s1,"Serials"); XLSX.utils.book_append_sheet(wb,s2,"Summary");
       blob=new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}); name=`serials-${day}.xlsx`;
     }else{
       const q=v=>`"${String(v).replace(/"/g,'""')}"`;
-      blob=new Blob([["#,Serial,Starts with,Page,Read from,Note"].concat(list.map(r=>[r["#"],r.Serial,r["Starts with"],r.Page,r["Read from"],r.Note].map(q).join(","))).join("\r\n")],{type:"text/csv"}); name=`serials-${day}.csv`;
+      blob=new Blob([["#,Serial,Starts with,Page,Read from,Check digit,Note"].concat(list.map(r=>[r["#"],r.Serial,r["Starts with"],r.Page,r["Read from"],r["Check digit"],r.Note].map(q).join(","))).join("\r\n")],{type:"text/csv"}); name=`serials-${day}.csv`;
     }
     try{
       if(downloads) await downloads.save({filename:name,data:blob});
