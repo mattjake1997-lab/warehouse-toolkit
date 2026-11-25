@@ -46,6 +46,9 @@ try{var t=window.parent.document.documentElement.getAttribute("data-theme");if(t
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
 .wrap{max-width:900px;margin:0 auto;padding:32px 16px 64px;display:grid;gap:28px}
+.wrap>header{text-align:center}.wrap>header .lead{margin-left:auto;margin-right:auto}
+.banner[hidden]{display:none}
+.banner{display:block;width:100%;max-width:520px;height:auto;margin:0 auto 22px}
 h1{font-size:clamp(28px,5vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0}
 .lead{color:var(--muted);margin:8px 0 0;max-width:64ch}
 .basics{background:var(--panel);border:1px solid var(--line);border-left:3px solid #964dff;border-radius:12px;padding:18px 20px;display:grid;gap:10px}
@@ -114,6 +117,7 @@ details[open]{border-left:3px solid var(--accent2);padding-left:12px}
 
 <div class="wrap">
   <header>
+    <img class="banner" id="banner" alt="Metronet — A Metronet Warehouse innovation" hidden>
     <h1>How it works</h1>
     <p class="lead" style="margin-bottom:6px">A step-by-step guide to every tool in the Warehouse Toolkit, written so someone using it for the first time can follow along. Set up your save folder once, then pick a tool below and follow the numbered steps.</p>
   </header>
@@ -160,6 +164,8 @@ details[open]{border-left:3px solid var(--accent2);padding-left:12px}
   <div id="tools"></div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<script>/* The banner comes from the settings file, so the company logo isn't stored on GitHub. */
+try{var B=window.TK&&TK.brand&&TK.brand.banner;if(B){var e=document.getElementById("banner");e.src=B;e.hidden=false}}catch(e){}</script>
 
 <script>
 (function(){
