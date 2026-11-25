@@ -101,6 +101,7 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
 .orig{min-width:0}
 .orig .fn{font-size:14px;overflow-wrap:anywhere}
 .orig .note{font-size:12.5px;color:var(--muted)}
+.pocrop{display:block;margin-top:6px;max-width:240px;width:100%;background:#fff;border:1px solid var(--line);border-radius:5px}
 .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);color:var(--muted);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 10px;width:max-content}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -239,6 +240,20 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
   const PO_RE=/(?<!\d)(3\s?1\s?\d(?:\s?\d){4})(?!\d)/g;
   // PO numbers are 7 digits starting 31; OCR sometimes tacks a stray digit on the end.
   const NEW_FILE_RE=(()=>{try{return TK.renamer&&TK.renamer.newFileMatch?new RegExp(TK.renamer.newFileMatch,"i"):null}catch(e){return null}})();
+  // The hand-filled Metronet Supply receiving form is also recognised by its own boxes (Vendor Name, PO Number,
+  // Item Description / Printed Name), so it starts a new file even on a computer without the settings file.
+  const formLike=t=>/Vendor\s*Name/i.test(t)&&/P\.?\s*O\.?\s*Num/i.test(t)&&/Printed\s*Name|Item\s*Desc/i.test(t);
+  // Where the handwritten PO number sits on that form: the box just under the "PO Number" label.
+  // (The word list leaves out two-letter words like "PO", so it goes by "Number": the PO box's label is the
+  // highest "Number" on the form, above the "Item Number" column.)
+  function formPoBox(ws){
+    const nums=ws.filter(w=>/^Numb/i.test(w.t)&&w.b[1]<0.5).sort((a,b)=>a.b[1]-b.b[1]);
+    const vendor=ws.find(w=>/^Vendor/i.test(w.t));
+    const n=(vendor&&nums.find(w=>Math.abs(w.b[1]-vendor.b[1])<0.015&&w.b[0]>vendor.b[0]))||nums[0];
+    if(!n) return null;
+    const lx=Math.max(0,n.b[0]-0.045);
+    return [Math.max(0,lx-0.01), Math.min(1,n.b[3]+0.004), Math.min(1,lx+0.23), Math.min(1,n.b[3]+0.075)];
+  }
   function normNum(n){ n=String(n).replace(/\D/g,""); return /^31\d{6}$/.test(n)?n.slice(0,7):n; }
   function tallyMatches(text,re){
     const counts=new Map(); let m; re.lastIndex=0;
@@ -340,6 +355,41 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
     x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(w-1,x1+pad); y1=Math.min(c.height-1,y1+pad);
     const full=canvasOf(w,c.height); full.getContext("2d").putImageData(img,0,0);
     const out=canvasOf(x1-x0+1,y1-y0+1); out.getContext("2d").drawImage(full,x0,y0,out.width,out.height,0,0,out.width,out.height);
+    return out;
+  }
+  // Highlighted spots (yellow, blue, pink, green marker): light, coloured areas about a line of text tall.
+  // Whole-page reading sometimes drops a highlighted table cell, so each one is also read on its own, zoomed in.
+  function highlightBoxes(c,ppi){
+    const W=c.width, H=c.height, cs=Math.max(2,Math.round(ppi/40)), gw=Math.floor(W/cs), gh=Math.floor(H/cs);
+    const d=c.getContext("2d").getImageData(0,0,gw*cs,gh*cs).data, rw=gw*cs, grid=new Uint8Array(gw*gh);
+    for(let gy=0;gy<gh;gy++) for(let gx=0;gx<gw;gx++){
+      let n=0;
+      for(let yy=gy*cs;yy<gy*cs+cs;yy++) for(let xx=gx*cs;xx<gx*cs+cs;xx++){ const i=(yy*rw+xx)*4, r=d[i],g=d[i+1],b=d[i+2], mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+        if(mx-mn>45&&0.3*r+0.59*g+0.11*b>150) n++; }
+      grid[gy*gw+gx]=n>=cs*cs*0.3?1:0;
+    }
+    const seen=new Uint8Array(gw*gh), boxes=[];
+    for(let s0=0;s0<gw*gh;s0++){
+      if(!grid[s0]||seen[s0]) continue;
+      const st=[s0]; seen[s0]=1; let x0=gw,x1=-1,y0=gh,y1=-1,n=0;
+      while(st.length){ const k=st.pop(), x=k%gw, y=(k-x)/gw; n++;
+        if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+        for(const m of [k+1,k-1,k+gw,k-gw]){ if(m<0||m>=gw*gh||seen[m]||!grid[m]) continue; if((m===k+1&&x===gw-1)||(m===k-1&&x===0)) continue; seen[m]=1; st.push(m); } }
+      const w=(x1-x0+1)*cs/ppi, h=(y1-y0+1)*cs/ppi;
+      if(w>=0.35&&h>=0.07&&h<=0.7&&w<=5&&n>0.35*(x1-x0+1)*(y1-y0+1)) boxes.push({x:x0*cs,y:y0*cs,w:(x1-x0+1)*cs,h:(y1-y0+1)*cs,a:n});
+    }
+    return boxes.sort((a,b)=>b.a-a.a).slice(0,8);
+  }
+  async function readHighlights(ocr,up,ppi){
+    let out="";
+    for(const b of highlightBoxes(up,ppi)){
+      const px=Math.round(0.35*ppi), py=Math.round(0.06*ppi);
+      const x0=Math.max(0,b.x-px), y0=Math.max(0,b.y-py), x1=Math.min(up.width,b.x+b.w+px), y1=Math.min(up.height,b.y+b.h+py);
+      const k=Math.max(1,Math.min(3,300/ppi*1.5)), c=canvasOf(Math.round((x1-x0)*k),Math.round((y1-y0)*k));
+      const g=c.getContext("2d"); g.imageSmoothingQuality="high"; g.drawImage(up,x0,y0,x1-x0,y1-y0,0,0,c.width,c.height);
+      liftHighlights(c);
+      try{ out+="\n"+fixOcr((await ocr.stamp(c)).data.text||""); }catch(e){}
+    }
     return out;
   }
   // A hand-written mark (N, NEW, a check) in the bottom-right part of the upright page. The area is cut into
@@ -455,13 +505,24 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
         const {data}=await ocr.read(up,{text:true,blocks:true});
         text+="\n"+fixOcr(data.text||""); info.ocr=true;
         info.words=pageWords(data,up.width,up.height); info.sig=signature(info.words);
-        // Nothing found: read again treating the page as scattered bits of text, which copes better
+        // Nothing found: read each highlighted spot on its own first (the MFN is usually highlighted),
+        MFN_RE.lastIndex=0;
+        if(!MFN_RE.test(text)){ try{ text+="\n"+await readHighlights(ocr,rotated(orig,angle),ppi); }catch(e){} }
+        // then read again treating the page as scattered bits of text, which copes better
         // with numbers squeezed into table cells and next to dark header bars.
         MFN_RE.lastIndex=0;
         if(!MFN_RE.test(text)){ const r2=await ocr.stamp(up); text+="\n"+fixOcr(r2.data.text||""); }
         info.marked=bottomMark(rotated(orig,angle),ppi);
         MFN_RE.lastIndex=0;
         if(!MFN_RE.test(text)){ const sp=bestSpot(info.sig); if(sp){ try{ info.spot=await readSpot(ocr,rotated(orig,angle),sp.box); }catch(e){} } }
+        // The hand-filled form: read the PO box itself (the handwriting is easier to read on its own, zoomed in).
+        MFN_RE.lastIndex=0;
+        if(!info.spot&&!MFN_RE.test(text)&&(formLike(text)||(NEW_FILE_RE&&NEW_FILE_RE.test(text)))){ const fb=formPoBox(info.words||[]); if(fb){
+          const upO=rotated(orig,angle);
+          // A zoomed picture of the handwritten PO box goes next to the number, so it can be typed in without opening the page.
+          try{ const W=upO.width,H=upO.height,x0=fb[0]*W,y0=fb[1]*H,w=(fb[2]-fb[0])*W,h=(fb[3]-fb[1])*H, k=Math.min(1,320/w), cc=canvasOf(Math.round(w*k),Math.round(h*k));
+            cc.getContext("2d").drawImage(upO,x0,y0,w,h,0,0,cc.width,cc.height); info.poCrop=cc.toDataURL("image/jpeg",0.85); }catch(e){}
+          try{ info.spot=await readSpot(ocr,upO,fb); info.formRead=!!info.spot; }catch(e){} } }
         if(stamp) for(const a of [angle,0,90,270,180].filter((v,k,arr)=>arr.indexOf(v)===k)){
           const r=await ocr.stamp(rotated(stamp,a)); if(STAMP_RE.test(r.data.text||"")){info.stamped=true;break}
         }
@@ -472,7 +533,7 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
     info.po=tallyMatches(text,PO_RE);
     info.guess=looseGuesses(text);
     // Hand-filled new-shipment forms (settings: renamer.newFileMatch) are always one page each.
-    info.manual=!!NEW_FILE_RE&&NEW_FILE_RE.test(text);   // a form that always starts a new shipment (from the settings file)
+    info.manual=(!!NEW_FILE_RE&&NEW_FILE_RE.test(text))||formLike(text);   // the hand-filled form always starts a new shipment
     page.cleanup();
     return info;
   }
@@ -499,7 +560,8 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
     const starts=[0]; let cur=pages[0]&&pages[0].mfn, curNum=pages[0]&&num(pages[0]);
     for(let i=1;i<pages.length;i++){
       const p=pages[i], n=num(p);
-      const fresh=p.stamped||p.marked||p.manual||(p.mfn&&p.mfn!==cur)||(!p.mfn&&n&&n!==curNum&&n!==cur);
+      // The hand-filled form is one page on its own, so the page after it starts a new file too.
+      const fresh=p.stamped||p.marked||p.manual||pages[i-1].manual||(p.mfn&&p.mfn!==cur)||(!p.mfn&&n&&n!==curNum&&n!==cur);
       if(fresh){starts.push(i);cur=p.mfn;curNum=n}
       else if(!curNum&&n) curNum=n;
     }
@@ -547,15 +609,18 @@ h1 mark{background:linear-gradient(transparent 55%,var(--accent) 55%);color:inhe
       note=`Found MFN-${number}`+(odd?". Read from a scan, please check the digits":"")+(mfns.length>1?`. Also saw ${mfns.slice(1).map(m=>"MFN-"+m).join(", ")}`:"");
     } else if(spot){
       number=spot; status=/^31\d{5}$/.test(spot)?"ok":"warn";
-      note=`Read ${spot} from the spot you fixed on this form before`+(status==="warn"?", please check":"");
+      const fromForm=seg.pages.some(i=>src.pages[i].formRead);
+      if(fromForm){ status="warn"; note=`Read ${spot} from the handwritten PO box, please check`; }
+      else note=`Read ${spot} from the spot you fixed on this form before`+(status==="warn"?", please check":"");
     } else {
       const list=[...po];
       if(list.length===1){number=list[0];status="warn";note=`No MFN, used PO number ${list[0]}`}
       else if(list.length>1){number=list[0];status="warn";guessed=true;note=`Best guess ${list[0]}, please check. Also saw ${list.slice(1,4).join(", ")}`}
       else if(guess.length){number=guess[0];status="warn";guessed=true;note=`Best guess ${guess[0]} from a hard-to-read number, please check`+(guess.length>1?`. Also possible: ${guess.slice(1,3).join(", ")}`:"")}
-      else note=src.ocrFailed?"The image reader couldn't start here. Type the number in":"Couldn't find any number on this page. Type the number in";
+      else note=src.ocrFailed?"The image reader couldn't start here. Type the number in":seg.pages.some(i=>src.pages[i].poCrop)?"Handwritten PO number. Type it in from the picture below":"Couldn't find any number on this page. Type the number in";
     }
-    return {number,status,guessed,note:why?`${why}. ${note}`:note};
+    const poCrop=seg.pages.map(i=>src.pages[i].poCrop).find(Boolean)||"";
+    return {number,status,guessed,poCrop,note:why?`${why}. ${note}`:note};
   }
   // One row per finished file: each marked shipment stays its own file, even when two share a number
   // (the second is saved as "3100007 (2).pdf").
@@ -689,7 +754,7 @@ Reply with only JSON: {"number": "3100002" or null, "source": "mfn" | "po" | "no
     const multi=r.src&&r.src.pages.length>1;
     const title=r.example?r.orig:(r.whole?r.src.name:`${r.src.name} · ${pageLabel(r.pages)}`);
     return `<div class="row${r.example?" example":""}" role="row" data-key="${r.key}">
-      <div class="orig"><div class="fn">${esc(title)}${r.example?'<span class="tag">Example</span>':""}</div><div class="note">${esc(r.note)}${dup?". Same number as another file, so a (2) was added":""}</div></div>
+      <div class="orig"><div class="fn">${esc(title)}${r.example?'<span class="tag">Example</span>':""}</div><div class="note">${esc(r.note)}${dup?". Same number as another file, so a (2) was added":""}</div>${r.poCrop?`<img class="pocrop" src="${r.poCrop}" alt="The handwritten PO box on this form">`:""}</div>
       <div class="status"><span class="pill ${cls}">${label}</span></div>
       <div class="newname"><input class="num${!r.number?" empty":""}" id="num-${r.key.replace(":","-")}" inputmode="numeric" aria-label="New file name for ${esc(title)}" value="${esc(r.number)}" placeholder="type number" ${r.example?"disabled":""}><span class="ext">.pdf</span></div>
       <div class="rowbtns">
